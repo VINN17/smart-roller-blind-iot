@@ -612,7 +612,7 @@
         
         let logs = [];
         let currentMode = 'auto';
-        let isDemoMode = false;
+        
         // Charts
         let tempHumChart, rainChart, blindChart;
         
@@ -632,8 +632,7 @@
             initCanvas();
             initCharts();
             addLog('info', 'Dashboard initialized');
-            // Langsung jalankan animasi default meskipun data belum ada
-            animate();
+            
             const savedIP = localStorage.getItem('espIP');
             if (savedIP) {
                 espIP = savedIP;
@@ -1112,23 +1111,14 @@
             fetchData();
             fetchInterval = setInterval(fetchData, updateIntervalTime);
         }
-        
+
         // ==================== DATA FETCHING ====================
         function fetchData() {
-            // if (!espIP) return;
-            // Jika tidak ada IP (seperti di GitHub), buat data simulasi agar animasi jalan
-            if (!espIP) {
-                runDemoMode();
-                return;
-            }
-            // Gunakan timeout agar fetch tidak menunggu terlalu lama jika IP tidak aktif
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2000);
+            if (!espIP) return;
 
             fetch(`http://${espIP}/data`)
                 .then(response => response.json())
                 .then(data => {
-                    isDemoMode = false;
                     document.getElementById('temp').textContent = data.temp.toFixed(1);
                     document.getElementById('hum').textContent = data.hum.toFixed(1);
                     document.getElementById('rain1').textContent = data.rain1;
@@ -1179,26 +1169,9 @@
                 .catch(error => {
                     document.getElementById('statusIndicator').className = 'status-indicator offline';
                     document.getElementById('connectionStatus').textContent = 'Disconnected';
-                    console.warn("Koneksi ESP32 gagal, masuk ke Demo Mode.");
-                    runDemoMode();
                 });
         }
-        // Fungsi tambahan untuk simulasi di GitHub
-        function runDemoMode() {
-            isDemoMode = true;
-            document.getElementById('connectionStatus').textContent = 'Demo Mode (ESP32 Offline)';
-            document.getElementById('statusIndicator').className = 'status-indicator offline';
-            
-            // Simulasi data agar animasi tetap bergerak
-            isDaytime = new Date().getHours() >= 6 && new Date().getHours() < 18;
-            isRaining = true; // Coba hapus komentar ini untuk tes animasi hujan di GitHub
-        }
-        function simulateData() {
-            isRaining = true; // Set true untuk ngetes animasi hujan
-            blindClosed = true; // Set true untuk ngetes animasi penutup
-            // Update UI sederhana
-            document.getElementById('weatherCondition').textContent = isRaining ? '🌧️' : '☀️';
-        }
+
         function updateStatsDisplay() {
             document.getElementById('rainCountToday').textContent = todayStats.rainCount;
             document.getElementById('avgTempToday').textContent = todayStats.tempCount > 0 
