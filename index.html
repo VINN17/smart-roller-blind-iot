@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Jemuran IoT Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-indicator.online {
+            background: #4CAF50;
+            box-shadow: 0 0 10px #4CAF50;
+            animation: pulse 2s infinite;
+        }
+        .status-indicator.offline {
+            background: #f44336;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Tab Navigation */
+        .tab-navigation {
+            background: white;
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+        }
+        .tab-btn {
+            padding: 12px 24px;
+            border: none;
+            background: #f5f5f5;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        .tab-btn:hover {
+            background: #e0e0e0;
+        }
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        /* Tab Content */
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        /* Canvas Animation */
+        #weatherCanvas {
+            width: 100%;
+            height: 300px;
+            border-radius: 10px;
+            background: linear-gradient(to bottom, #87CEEB, #E0F6FF);
+        }
+        #weatherCanvas.night {
+            background: linear-gradient(to bottom, #0c1445, #1a2766);
+        }
+        
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        
+        /* Sensor Display */
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        .sensor-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        .sensor-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .sensor-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+        .sensor-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        /* Controls */
+        .control-group {
+            margin-bottom: 20px;
+        }
+        .mode-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .btn {
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #4CAF50; color: white; }
+        .btn-danger { background: #f44336; color: white; }
+        .btn-warning { background: #ff9800; color: white; }
+        .btn.active {
+            box-shadow: 0 0 15px rgba(102, 126, 234, 0.5);
+            transform: scale(1.05);
+        }
+        
+        /* Logs */
+        .log-container {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 5px;
+            border-left: 3px solid #00ff00;
+            padding-left: 10px;
+        }
+        .log-entry.info { border-left-color: #2196F3; }
+        .log-entry.warning { border-left-color: #ff9800; }
+        .log-entry.error { border-left-color: #f44336; }
+        
+        /* Settings */
+        .settings-section {
+            margin-bottom: 25px;
+        }
+        .settings-section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+        .input-group label {
+            min-width: 150px;
+            font-weight: 500;
+        }
+        .input-group input, .input-group select {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+        .input-group button {
+            padding: 12px 30px;
+        }
+        
+        /* Chart Container */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 20px;
+        }
+        
+        /* Info Box */
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .info-box.success { background: #e8f5e9; border-left-color: #4CAF50; }
+        .info-box.warning { background: #fff3e0; border-left-color: #ff9800; }
+        .info-box.error { background: #ffebee; border-left-color: #f44336; }
+        
+        /* Theme Selector */
+        .theme-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+        }
+        .theme-option {
+            padding: 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            border: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        .theme-option:hover {
+            transform: scale(1.05);
+        }
+        .theme-option.selected {
+            border-color: #667eea;
+            box-shadow: 0 0 15px rgba(102, 126, 234, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌤️ Smart Jemuran IoT Dashboard</h1>
+            <p><span class="status-indicator offline" id="statusIndicator"></span><span id="connectionStatus">Not Connected</span></p>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+            <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
+            <button class="tab-btn" onclick="switchTab('control')">🎛️ Control</button>
+            <button class="tab-btn" onclick="switchTab('history')">📈 History</button>
+            <button class="tab-btn" onclick="switchTab('logs')">📝 Logs</button>
+            <button class="tab-btn" onclick="switchTab('settings')">⚙️ Settings</button>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content active">
+            <!-- Stats Today -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Deteksi Hujan Hari Ini</div>
+                    <div class="stat-value" id="rainCountToday">0</div>
+                    <div class="stat-label">kali</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Rata-rata Suhu</div>
+                    <div class="stat-value" id="avgTempToday">--</div>
+                    <div class="stat-label">°C</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Rata-rata Kelembaban</div>
+                    <div class="stat-value" id="avgHumToday">--</div>
+                    <div class="stat-label">%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Blind Aktif</div>
+                    <div class="stat-value" id="blindActiveToday">0</div>
+                    <div class="stat-label">kali</div>
+                </div>
+            </div>
+
+            <div class="grid">
+                <!-- Weather Animation -->
+                <div class="card">
+                    <h2>🌦️ Animasi Cuaca Real-time</h2>
+                    <canvas id="weatherCanvas"></canvas>
+                </div>
+
+                <!-- Real-time Sensors -->
+                <div class="card">
+                    <h2>🌡️ Sensor Real-time</h2>
+                    <div class="sensor-grid">
+                        <div class="sensor-item">
+                            <div class="sensor-label">Suhu</div>
+                            <div class="sensor-value" id="temp">--</div>
+                            <div class="sensor-label">°C</div>
+                        </div>
+                        <div class="sensor-item">
+                            <div class="sensor-label">Kelembaban</div>
+                            <div class="sensor-value" id="hum">--</div>
+                            <div class="sensor-label">%</div>
+                        </div>
+                        <div class="sensor-item">
+                            <div class="sensor-label">Sensor Hujan 1</div>
+                            <div class="sensor-value" id="rain1">--</div>
+                            <div class="sensor-label">%</div>
+                        </div>
+                        <div class="sensor-item">
+                            <div class="sensor-label">Sensor Hujan 2</div>
+                            <div class="sensor-value" id="rain2">--</div>
+                            <div class="sensor-label">%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Tab -->
+        <div id="control" class="tab-content">
+            <div class="card">
+                <h2>🎛️ Kontrol Roller Blind</h2>
+                <div class="control-group">
+                    <h3>Mode Operasi</h3>
+                    <div class="mode-toggle">
+                        <button class="btn btn-primary active" id="btnAuto" onclick="setMode('auto')">AUTO</button>
+                        <button class="btn btn-warning" id="btnManual" onclick="setMode('manual')">MANUAL</button>
+                    </div>
+                </div>
+
+                <div id="manualControls" style="display:none;">
+                    <h3>Kontrol Manual</h3>
+                    <div style="display: grid; gap: 10px;">
+                        <button class="btn btn-success" onclick="controlBlind('naik')">⬆️ NAIK</button>
+                        <button class="btn btn-danger" onclick="controlBlind('turun')">⬇️ TURUN</button>
+                        <button class="btn btn-warning" onclick="controlBlind('stop')">⏹️ STOP</button>
+                    </div>
+                </div>
+
+                <div id="autoInfo" class="info-box" style="margin-top: 20px;">
+                    <strong>Mode AUTO Aktif</strong><br>
+                    Sistem akan mengatur roller blind secara otomatis berdasarkan kondisi cuaca dan threshold yang telah diatur.
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📊 Status Sistem</h2>
+                <div class="sensor-grid">
+                    <div class="sensor-item">
+                        <div class="sensor-label">Mode</div>
+                        <div class="sensor-value" id="currentMode" style="font-size: 1.5em;">AUTO</div>
+                    </div>
+                    <div class="sensor-item">
+                        <div class="sensor-label">Blind Status</div>
+                        <div class="sensor-value" id="blindStatus" style="font-size: 1.5em;">STOP</div>
+                    </div>
+                    <div class="sensor-item">
+                        <div class="sensor-label">Weather</div>
+                        <div class="sensor-value" id="weatherCondition" style="font-size: 1.5em;">☀️</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div id="history" class="tab-content">
+            <div class="card">
+                <h2>📈 Grafik Suhu & Kelembaban</h2>
+                <div class="chart-container">
+                    <canvas id="tempHumChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>🌧️ Grafik Sensor Hujan</h2>
+                <div class="chart-container">
+                    <canvas id="rainChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📊 Aktivitas Blind</h2>
+                <div class="chart-container">
+                    <canvas id="blindChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Tab -->
+        <div id="logs" class="tab-content">
+            <div class="card">
+                <h2>📝 Activity Logs</h2>
+                <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+                    <button class="btn btn-primary" onclick="clearLogs()">🗑️ Clear Logs</button>
+                    <button class="btn btn-success" onclick="exportLogs()">💾 Export Logs</button>
+                </div>
+                <div class="log-container" id="logContainer">
+                    <div class="log-entry info">[INFO] Dashboard initialized</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="settings" class="tab-content">
+            <div class="card">
+                <h2>⚙️ Pengaturan Sistem</h2>
+                
+                <div class="settings-section">
+                    <h3>🔌 Koneksi ESP32</h3>
+                    <div class="info-box">
+                        <strong>Petunjuk:</strong> Masukkan IP Address ESP32. IP akan muncul di Serial Monitor setelah terhubung ke WiFi.
+                    </div>
+                    <div class="input-group">
+                        <label>IP Address:</label>
+                        <input type="text" id="espIP" placeholder="192.168.1.100">
+                        <button class="btn btn-primary" onclick="saveIP()">💾 Simpan</button>
+                        <button class="btn btn-success" onclick="testConnection()">🔌 Test</button>
+                    </div>
+                    <p id="ipStatus" style="margin-top: 10px; color: #666;"></p>
+                </div>
+
+                <div class="settings-section">
+                    <h3>🎯 Custom Threshold</h3>
+                    <div class="input-group">
+                        <label>Threshold Hujan (%):</label>
+                        <input type="number" id="rainThreshold" value="45" min="0" max="100">
+                    </div>
+                    <div class="input-group">
+                        <label>Threshold Kelembaban (%):</label>
+                        <input type="number" id="humThreshold" value="85" min="0" max="100">
+                    </div>
+                    <div class="input-group">
+                        <label>Threshold Suhu (°C):</label>
+                        <input type="number" id="tempThreshold" value="28" min="0" max="50">
+                    </div>
+                    <button class="btn btn-primary" onclick="saveThresholds()">💾 Simpan Threshold</button>
+                </div>
+
+                <div class="settings-section">
+                    <h3>🎨 Personalisasi</h3>
+                    <div class="input-group">
+                        <label>Nama Dashboard:</label>
+                        <input type="text" id="dashboardName" placeholder="Smart Jemuran IoT">
+                        <button class="btn btn-primary" onclick="saveName()">💾 Simpan</button>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>Interval Update (detik):</label>
+                        <input type="number" id="updateInterval" value="2" min="1" max="60">
+                        <button class="btn btn-primary" onclick="saveInterval()">💾 Simpan</button>
+                    </div>
+
+                    <label style="display: block; margin-bottom: 10px; font-weight: 500;">Pilih Tema:</label>
+                    <div class="theme-selector">
+                        <div class="theme-option selected" onclick="setTheme('purple')" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+                            <span style="color: white;">Purple</span>
+                        </div>
+                        <div class="theme-option" onclick="setTheme('blue')" style="background: linear-gradient(135deg, #2196F3, #1976D2);">
+                            <span style="color: white;">Blue</span>
+                        </div>
+                        <div class="theme-option" onclick="setTheme('green')" style="background: linear-gradient(135deg, #4CAF50, #2E7D32);">
+                            <span style="color: white;">Green</span>
+                        </div>
+                        <div class="theme-option" onclick="setTheme('orange')" style="background: linear-gradient(135deg, #ff9800, #f57c00);">
+                            <span style="color: white;">Orange</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>💾 Data Management</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="btn btn-success" onclick="exportData()">📥 Export Data</button>
+                        <button class="btn btn-warning" onclick="resetStats()">🔄 Reset Statistik</button>
+                        <button class="btn btn-danger" onclick="clearAllData()">🗑️ Hapus Semua Data</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== GLOBAL VARIABLES ====================
+        let espIP = '';
+        let fetchInterval;
+        let updateIntervalTime = 2000;
+        let currentTheme = 'purple';
+        
+        // Data Storage
+        let sensorHistory = {
+            temp: [],
+            hum: [],
+            rain1: [],
+            rain2: [],
+            timestamps: [],
+            blindStatus: []
+        };
+        
+        let todayStats = {
+            rainCount: 0,
+            tempSum: 0,
+            humSum: 0,
+            tempCount: 0,
+            humCount: 0,
+            blindActiveCount: 0,
+            lastRainState: false,
+            lastBlindState: 'open'
+        };
+        
+        let logs = [];
+        let currentMode = 'auto';
+        
+        // Charts
+        let tempHumChart, rainChart, blindChart;
+        
+        // Canvas Animation
+        let canvas, ctx;
+        let particles = [];
+        let isDaytime = true;
+        let isRaining = false;
+
+        // ==================== INITIALIZATION ====================
+        window.addEventListener('load', () => {
+            loadSettings();
+            initCanvas();
+            initCharts();
+            addLog('info', 'Dashboard initialized');
+            
+            const savedIP = localStorage.getItem('espIP');
+            if (savedIP) {
+                espIP = savedIP;
+                document.getElementById('espIP').value = savedIP;
+                addLog('info', `Loaded saved IP: ${savedIP}`);
+                startFetching();
+            }
+        });
+
+        // ==================== STORAGE FUNCTIONS ====================
+        function loadSettings() {
+            const settings = JSON.parse(localStorage.getItem('dashboardSettings') || '{}');
+            
+            if (settings.rainThreshold) document.getElementById('rainThreshold').value = settings.rainThreshold;
+            if (settings.humThreshold) document.getElementById('humThreshold').value = settings.humThreshold;
+            if (settings.tempThreshold) document.getElementById('tempThreshold').value = settings.tempThreshold;
+            if (settings.dashboardName) {
+                document.querySelector('.header h1').textContent = settings.dashboardName;
+                document.getElementById('dashboardName').value = settings.dashboardName;
+            }
+            if (settings.updateInterval) {
+                updateIntervalTime = settings.updateInterval * 1000;
+                document.getElementById('updateInterval').value = settings.updateInterval;
+            }
+            if (settings.theme) {
+                currentTheme = settings.theme;
+                applyTheme(currentTheme);
+            }
+            
+            // Load stats
+            const savedStats = JSON.parse(localStorage.getItem('todayStats') || '{}');
+            const today = new Date().toDateString();
+            if (savedStats.date === today) {
+                todayStats = savedStats;
+                updateStatsDisplay();
+            }
+            
+            // Load history
+            const savedHistory = JSON.parse(localStorage.getItem('sensorHistory') || '{}');
+            if (savedHistory.timestamps && savedHistory.timestamps.length > 0) {
+                sensorHistory = savedHistory;
+                updateCharts();
+            }
+            
+            // Load logs
+            const savedLogs = JSON.parse(localStorage.getItem('activityLogs') || '[]');
+            if (savedLogs.length > 0) {
+                logs = savedLogs;
+                displayLogs();
+            }
+        }
+
+        function saveSettings() {
+            const settings = {
+                rainThreshold: document.getElementById('rainThreshold').value,
+                humThreshold: document.getElementById('humThreshold').value,
+                tempThreshold: document.getElementById('tempThreshold').value,
+                dashboardName: document.getElementById('dashboardName').value,
+                updateInterval: document.getElementById('updateInterval').value,
+                theme: currentTheme
+            };
+            localStorage.setItem('dashboardSettings', JSON.stringify(settings));
+        }
+
+        function saveStats() {
+            todayStats.date = new Date().toDateString();
+            localStorage.setItem('todayStats', JSON.stringify(todayStats));
+        }
+
+        function saveHistory() {
+            // Keep only last 100 data points
+            if (sensorHistory.timestamps.length > 100) {
+                Object.keys(sensorHistory).forEach(key => {
+                    sensorHistory[key] = sensorHistory[key].slice(-100);
+                });
+            }
+            localStorage.setItem('sensorHistory', JSON.stringify(sensorHistory));
+        }
+
+        function saveLogs() {
+            // Keep only last 500 logs
+            if (logs.length > 500) {
+                logs = logs.slice(-500);
+            }
+            localStorage.setItem('activityLogs', JSON.stringify(logs));
+        }
+
+        // ==================== TAB NAVIGATION ====================
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+            
+            addLog('info', `Switched to ${tabName} tab`);
+        }
+
+        // ==================== CANVAS ANIMATION ====================
+        function initCanvas() {
+            canvas = document.getElementById('weatherCanvas');
+            ctx = canvas.getContext('2d');
+            
+            function resize() {
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+            
+            animate();
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw sun or moon
+            if (isDaytime) {
+                ctx.fillStyle = '#FFD700';
+                ctx.shadowBlur = 30;
+                ctx.shadowColor = '#FFD700';
+                ctx.beginPath();
+                ctx.arc(canvas.width - 80, 60, 40, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            } else {
+                // Stars
+                ctx.fillStyle = 'white';
+                for (let i = 0; i < 50; i++) {
+                    const x = (i * 50) % canvas.width;
+                    const y = (i * 30) % (canvas.height * 0.7);
+                    ctx.fillRect(x, y, 2, 2);
+                }
+                
+                // Moon
+                ctx.fillStyle = '#F0F0F0';
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#F0F0F0';
+                ctx.beginPath();
+                ctx.arc(canvas.width - 80, 60, 35, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+            
+            // Rain animation
+            if (isRaining) {
+                ctx.strokeStyle = '#4A90E2';
+                ctx.lineWidth = 2;
+                
+                for (let i = 0; i < 50; i++) {
+                    const x = Math.random() * canvas.width;
+                    const y = (Date.now() / 5 + i * 10) % canvas.height;
+                    ctx.beginPath();
+                    ctx.moveTo(x, y);
+                    ctx.lineTo(x, y + 20);
+                    ctx.stroke();
+                }
+            }
+            
+            // Draw jemuran
+            const jemuranX = canvas.width / 2;
+            const jemuranY = canvas.height - 100;
+            
+            // Poles
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(jemuranX - 100, jemuranY, 8, 80);
+            ctx.fillRect(jemuranX + 92, jemuranY, 8, 80);
+            
+            // Rope
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(jemuranX - 100, jemuranY + 20);
+            ctx.lineTo(jemuranX + 100, jemuranY + 20);
+            ctx.stroke();
+            
+            // Clothes
+            const colors = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#95E1D3'];
+            for (let i = 0; i < 4; i++) {
+                ctx.fillStyle = colors[i];
+                ctx.fillRect(jemuranX - 80 + i * 50, jemuranY + 23, 35, 40);
+            }
+            
+            requestAnimationFrame(animate);
+        }
+
+        // ==================== CHARTS ====================
+        function initCharts() {
+            // Temperature & Humidity Chart
+            const tempHumCtx = document.getElementById('tempHumChart').getContext('2d');
+            tempHumChart = new Chart(tempHumCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Suhu (°C)',
+                        data: [],
+                        borderColor: '#ff6384',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.4
+                    }, {
+                        label: 'Kelembaban (%)',
+                        data: [],
+                        borderColor: '#36a2eb',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+
+            // Rain Sensor Chart
+            const rainCtx = document.getElementById('rainChart').getContext('2d');
+            rainChart = new Chart(rainCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Sensor Hujan 1 (%)',
+                        data: [],
+                        borderColor: '#4bc0c0',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        tension: 0.4
+                    }, {
+                        label: 'Sensor Hujan 2 (%)',
+                        data: [],
+                        borderColor: '#9966ff',
+                        backgroundColor: 'rgba(153, 102, 255, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, max: 100 }
+                    }
+                }
+            });
+
+            // Blind Activity Chart
+            const blindCtx = document.getElementById('blindChart').getContext('2d');
+            blindChart = new Chart(blindCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Status Blind (0=Open, 1=Closed)',
+                        data: [],
+                        backgroundColor: '#ffce56'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, max: 1 }
+                    }
+                }
+            });
+        }
+
+        function updateCharts() {
+            // Update temp/hum chart
+            tempHumChart.data.labels = sensorHistory.timestamps.slice(-20);
+            tempHumChart.data.datasets[0].data = sensorHistory.temp.slice(-20);
+            tempHumChart.data.datasets[1].data = sensorHistory.hum.slice(-20);
+            tempHumChart.update();
+
+            // Update rain chart
+            rainChart.data.labels = sensorHistory.timestamps.slice(-20);
+            rainChart.data.datasets[0].data = sensorHistory.rain1.slice(-20);
+            rainChart.data.datasets[1].data = sensorHistory.rain2.slice(-20);
+            rainChart.update();
+
+            // Update blind chart
+            blindChart.data.labels = sensorHistory.timestamps.slice(-20);
+            blindChart.data.datasets[0].data = sensorHistory.blindStatus.slice(-20);
+            blindChart.update();
+        }
+
+        // ==================== LOGS ====================
+        function addLog(type, message) {
+            const timestamp = new Date().toLocaleString('id-ID');
+            const log = { type, message, timestamp };
+            logs.push(log);
+            saveLogs();
+            displayLogs();
+        }
+
+        function displayLogs() {
+            const container = document.getElementById('logContainer');
+            container.innerHTML = logs.slice(-50).reverse().map(log => 
+                `<div class="log-entry ${log.type}">[${log.timestamp}] [${log.type.toUpperCase()}] ${log.message}</div>`
+            ).join('');
+        }
+
+        function clearLogs() {
+            if (confirm('Hapus semua logs?')) {
+                logs = [];
+                saveLogs();
+                displayLogs();
+                addLog('info', 'Logs cleared');
+            }
+        }
+
+        function exportLogs() {
+            const dataStr = JSON.stringify(logs, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `jemuran_logs_${new Date().toISOString()}.json`;
+            a.click();
+            addLog('info', 'Logs exported');
+        }
+
+        // ==================== CONNECTION ====================
+        function saveIP() {
+            const ipInput = document.getElementById('espIP').value.trim();
+            if (ipInput) {
+                espIP = ipInput;
+                localStorage.setItem('espIP', espIP);
+                document.getElementById('ipStatus').textContent = `✅ IP disimpan: ${espIP}`;
+                document.getElementById('ipStatus').style.color = '#4CAF50';
+                addLog('info', `ESP32 IP saved: ${espIP}`);
+                startFetching();
+            } else {
+                document.getElementById('ipStatus').textContent = '❌ IP tidak valid';
+                document.getElementById('ipStatus').style.color = '#f44336';
+            }
+        }
+
+        function testConnection() {
+            const ipInput = document.getElementById('espIP').value.trim();
+            if (!ipInput) {
+                alert('Masukkan IP address terlebih dahulu');
+                return;
+            }
+            
+            document.getElementById('ipStatus').textContent = '🔄 Testing koneksi...';
+            document.getElementById('ipStatus').style.color = '#ff9800';
+            addLog('info', `Testing connection to ${ipInput}...`);
+            
+            fetch(`http://${ipInput}/data`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('ipStatus').textContent = `✅ Koneksi berhasil!`;
+                    document.getElementById('ipStatus').style.color = '#4CAF50';
+                    espIP = ipInput;
+                    localStorage.setItem('espIP', espIP);
+                    addLog('info', `Connection successful to ${espIP}`);
+                    startFetching();
+                })
+                .catch(error => {
+                    document.getElementById('ipStatus').textContent = `❌ Koneksi gagal`;
+                    document.getElementById('ipStatus').style.color = '#f44336';
+                    addLog('error', `Connection failed: ${error.message}`);
+                });
+        }
+
+        function startFetching() {
+            if (fetchInterval) clearInterval(fetchInterval);
+            fetchData();
+            fetchInterval = setInterval(fetchData, updateIntervalTime);
+        }
+
+        // ==================== DATA FETCHING ====================
+        function fetchData() {
+            if (!espIP) return;
+
+            fetch(`http://${espIP}/data`)
+                .then(response => response.json())
+                .then(data => {
+                    // Update sensor displays
+                    document.getElementById('temp').textContent = data.temp.toFixed(1);
+                    document.getElementById('hum').textContent = data.hum.toFixed(1);
+                    document.getElementById('rain1').textContent = data.rain1;
+                    document.getElementById('rain2').textContent = data.rain2;
+                    
+                    // Update mode and status
+                    document.getElementById('currentMode').textContent = data.mode.toUpperCase();
+                    document.getElementById('blindStatus').textContent = data.blindStatus === 'closed' ? 'CLOSED' : 'OPEN';
+                    document.getElementById('weatherCondition').textContent = data.isRaining ? '🌧️' : '☀️';
+                    
+                    // Update animation states
+                    isDaytime = data.hour >= 6 && data.hour < 18;
+                    isRaining = data.isRaining;
+                    
+                    // Update canvas background
+                    if (isDaytime) {
+                        canvas.classList.remove('night');
+                        canvas.style.background = 'linear-gradient(to bottom, #87CEEB, #E0F6FF)';
+                    } else {
+                        canvas.classList.add('night');
+                        canvas.style.background = 'linear-gradient(to bottom, #0c1445, #1a2766)';
+                    }
+                    
+                    // Store history
+                    const timestamp = new Date().toLocaleTimeString('id-ID');
+                    sensorHistory.timestamps.push(timestamp);
+                    sensorHistory.temp.push(data.temp);
+                    sensorHistory.hum.push(data.hum);
+                    sensorHistory.rain1.push(data.rain1);
+                    sensorHistory.rain2.push(data.rain2);
+                    sensorHistory.blindStatus.push(data.blindStatus === 'closed' ? 1 : 0);
+                    
+                    saveHistory();
+                    updateCharts();
+                    
+                    // Update stats
+                    todayStats.tempSum += data.temp;
+                    todayStats.humSum += data.hum;
+                    todayStats.tempCount++;
+                    todayStats.humCount++;
+                    
+                    if (data.isRaining && !todayStats.lastRainState) {
+                        todayStats.rainCount++;
+                        addLog('warning', 'Rain detected!');
+                    }
+                    todayStats.lastRainState = data.isRaining;
+                    
+                    if (data.blindStatus === 'closed' && todayStats.lastBlindState === 'open') {
+                        todayStats.blindActiveCount++;
+                        addLog('info', 'Blind closed');
+                    }
+                    todayStats.lastBlindState = data.blindStatus;
+                    
+                    updateStatsDisplay();
+                    saveStats();
+                    
+                    // Update connection status
+                    document.getElementById('statusIndicator').className = 'status-indicator online';
+                    document.getElementById('connectionStatus').textContent = 'Connected';
+                })
+                .catch(error => {
+                    document.getElementById('statusIndicator').className = 'status-indicator offline';
+                    document.getElementById('connectionStatus').textContent = 'Disconnected';
+                    addLog('error', `Data fetch failed: ${error.message}`);
+                });
+        }
+
+        function updateStatsDisplay() {
+            document.getElementById('rainCountToday').textContent = todayStats.rainCount;
+            document.getElementById('avgTempToday').textContent = todayStats.tempCount > 0 
+                ? (todayStats.tempSum / todayStats.tempCount).toFixed(1) : '--';
+            document.getElementById('avgHumToday').textContent = todayStats.humCount > 0 
+                ? (todayStats.humSum / todayStats.humCount).toFixed(1) : '--';
+            document.getElementById('blindActiveToday').textContent = todayStats.blindActiveCount;
+        }
+
+        // ==================== CONTROL ====================
+        function setMode(mode) {
+            if (!espIP) {
+                alert('Masukkan IP ESP32 terlebih dahulu');
+                return;
+            }
+
+            currentMode = mode;
+            const btnAuto = document.getElementById('btnAuto');
+            const btnManual = document.getElementById('btnManual');
+            const manualControls = document.getElementById('manualControls');
+            const autoInfo = document.getElementById('autoInfo');
+
+            if(mode === 'auto') {
+                btnAuto.classList.add('active');
+                btnManual.classList.remove('active');
+                manualControls.style.display = 'none';
+                autoInfo.style.display = 'block';
+            } else {
+                btnAuto.classList.remove('active');
+                btnManual.classList.add('active');
+                manualControls.style.display = 'block';
+                autoInfo.style.display = 'none';
+            }
+
+            fetch(`http://${espIP}/setMode?mode=${mode}`)
+                .then(response => response.json())
+                .then(data => {
+                    addLog('info', `Mode changed to ${mode.toUpperCase()}`);
+                })
+                .catch(error => {
+                    addLog('error', `Failed to change mode: ${error.message}`);
+                });
+        }
+
+        function controlBlind(action) {
+            if (!espIP) {
+                alert('Masukkan IP ESP32 terlebih dahulu');
+                return;
+            }
+
+            fetch(`http://${espIP}/control?action=${action}`)
+                .then(response => response.json())
+                .then(data => {
+                    addLog('info', `Blind action: ${action.toUpperCase()}`);
+                })
+                .catch(error => {
+                    addLog('error', `Blind control failed: ${error.message}`);
+                });
+        }
+
+        // ==================== SETTINGS ====================
+        function saveThresholds() {
+            saveSettings();
+            addLog('info', 'Thresholds saved');
+            alert('Threshold berhasil disimpan!');
+        }
+
+        function saveName() {
+            const name = document.getElementById('dashboardName').value;
+            document.querySelector('.header h1').textContent = name || 'Smart Jemuran IoT';
+            saveSettings();
+            addLog('info', `Dashboard name changed to: ${name}`);
+        }
+
+        function saveInterval() {
+            const interval = parseInt(document.getElementById('updateInterval').value);
+            updateIntervalTime = interval * 1000;
+            saveSettings();
+            startFetching();
+            addLog('info', `Update interval changed to ${interval}s`);
+            alert('Interval update berhasil diubah!');
+        }
+
+        function setTheme(theme) {
+            currentTheme = theme;
+            applyTheme(theme);
+            saveSettings();
+            
+            document.querySelectorAll('.theme-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            event.target.closest('.theme-option').classList.add('selected');
+            
+            addLog('info', `Theme changed to ${theme}`);
+        }
+
+        function applyTheme(theme) {
+            const themes = {
+                purple: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                blue: 'linear-gradient(135deg, #2196F3 0%, #1976D2 100%)',
+                green: 'linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%)',
+                orange: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)'
+            };
+            document.body.style.background = themes[theme] || themes.purple;
+        }
+
+        function exportData() {
+            const exportData = {
+                settings: JSON.parse(localStorage.getItem('dashboardSettings') || '{}'),
+                stats: todayStats,
+                history: sensorHistory,
+                logs: logs
+            };
+            
+            const dataStr = JSON.stringify(exportData, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `jemuran_data_${new Date().toISOString()}.json`;
+            a.click();
+            addLog('info', 'Data exported');
+        }
+
+        function resetStats() {
+            if (confirm('Reset semua statistik hari ini?')) {
+                todayStats = {
+                    rainCount: 0,
+                    tempSum: 0,
+                    humSum: 0,
+                    tempCount: 0,
+                    humCount: 0,
+                    blindActiveCount: 0,
+                    lastRainState: false,
+                    lastBlindState: 'open'
+                };
+                updateStatsDisplay();
+                saveStats();
+                addLog('info', 'Statistics reset');
+            }
+        }
+
+        function clearAllData() {
+            if (confirm('PERINGATAN: Ini akan menghapus SEMUA data termasuk history dan logs. Lanjutkan?')) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+    </script>
+</body>
+</html>
