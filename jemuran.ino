@@ -8,8 +8,8 @@
 #include "time.h"
 
 // ==================== KONFIGURASI WiFi ====================
-const char* ssid = "NotYOURSv2";
-const char* password = "hahahahaha";
+const char* ssid = "realme C55";
+const char* password = "polkanopski";
 const char* mqtt_server = "broker.hivemq.com";
 const int mqtt_port = 1883;
 
@@ -30,8 +30,8 @@ const int MOTOR_IN1 = 27;
 const int MOTOR_IN2 = 14;
 const int MOTOR_EN = 5;
 const int DHT_PIN = 26;
-const int LIMIT_SWITCH_ATAS = 22;
-const int LIMIT_SWITCH_BAWAH = 23;
+const int LIMIT_SWITCH_ATAS = 23;
+const int LIMIT_SWITCH_BAWAH = 22;
 
 DHTesp dhtSensor;
 
@@ -54,9 +54,13 @@ enum BlindStatus { NAIK,
                    TURUN,
                    BERHENTI };
 BlindStatus blindStatus = BERHENTI;
+BlindStatus targetStatus = BERHENTI;  // Target status untuk auto mode
+BlindStatus lastCommandedStatus = BERHENTI;  // Status terakhir yang diperintahkan
 
 bool isRaining = false;
 String weatherStatus = "Cerah";
+bool motorLocked = false;  // Flag untuk interlock
+bool limitReached = false;  // Flag untuk menandai limit tercapai
 
 // ==================== WEB SERVER ====================
 WebServer server(80);
@@ -96,50 +100,99 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
   if (String(topic) == topic_control) {
     if (message == "naik") {
-      controlMotor(NAIK);
+      requestMotorControl(NAIK);
     } else if (message == "turun") {
-      controlMotor(TURUN);
+      requestMotorControl(TURUN);
     } else if (message == "stop") {
-      controlMotor(BERHENTI);
+      requestMotorControl(BERHENTI);
     }
   }
 
   if (String(topic) == topic_mode) {
     if (message == "auto") {
       currentMode = AUTO;
+      motorLocked = false;
+      limitReached = false;
     } else if (message == "manual") {
       currentMode = MANUAL;
+      motorLocked = false;
+      limitReached = false;
     }
   }
+}
+
+// ==================== FUNGSI REQUEST KONTROL MOTOR ====================
+void requestMotorControl(BlindStatus requestedStatus) {
+  // Jika motor terkunci, cek apakah perintah berbeda dengan status sebelumnya
+  if (motorLocked) {
+    // Jika perintah berbeda dengan perintah sebelumnya, unlock motor
+    if (requestedStatus != lastCommandedStatus) {
+      Serial.println("Perintah berbeda terdeteksi - Unlocking motor");
+      motorLocked = false;
+      limitReached = false;
+    } else {
+      Serial.println("Motor masih terkunci - perintah diabaikan");
+      return;
+    }
+  }
+
+  // Simpan perintah terakhir
+  lastCommandedStatus = requestedStatus;
+  
+  // Eksekusi kontrol motor
+  controlMotor(requestedStatus);
 }
 
 // ==================== FUNGSI KONTROL MOTOR ====================
 void controlMotor(BlindStatus status) {
   blindStatus = status;
 
-  bool limitAtas = digitalRead(LIMIT_SWITCH_ATAS) == LOW;
-  bool limitBawah = digitalRead(LIMIT_SWITCH_BAWAH) == LOW;
+  bool limitAtas = digitalRead(LIMIT_SWITCH_ATAS) == LOW;  // Tertekan = LOW (0)
+  bool limitBawah = digitalRead(LIMIT_SWITCH_BAWAH) == HIGH;  // Tertekan = HIGH (1)
 
   if (status == NAIK) {
-    if (!limitAtas) {
+    if (!limitAtas) {  // Jika limit atas BELUM tertekan (masih HIGH)
       digitalWrite(MOTOR_IN1, HIGH);
       digitalWrite(MOTOR_IN2, LOW);
       analogWrite(MOTOR_EN, 255);
+      Serial.println("Motor NAIK");
     } else {
-      controlMotor(BERHENTI);
+      // Limit atas tercapai (tertekan = LOW)
+      digitalWrite(MOTOR_IN1, LOW);
+      digitalWrite(MOTOR_IN2, LOW);
+      analogWrite(MOTOR_EN, 0);
+      blindStatus = BERHENTI;
+      motorLocked = true;  // Lock motor
+      limitReached = true;
+      Serial.println("Limit ATAS tercapai - Motor LOCKED");
     }
   } else if (status == TURUN) {
-    if (!limitBawah) {
+    if (!limitBawah) {  // Jika limit bawah BELUM tertekan (masih LOW)
       digitalWrite(MOTOR_IN1, LOW);
       digitalWrite(MOTOR_IN2, HIGH);
       analogWrite(MOTOR_EN, 255);
+      Serial.println("Motor TURUN");
     } else {
-      controlMotor(BERHENTI);
+      // Limit bawah tercapai (tertekan = HIGH)
+      digitalWrite(MOTOR_IN1, LOW);
+      digitalWrite(MOTOR_IN2, LOW);
+      analogWrite(MOTOR_EN, 0);
+      blindStatus = BERHENTI;
+      motorLocked = true;  // Lock motor
+      limitReached = true;
+      Serial.println("Limit BAWAH tercapai - Motor LOCKED");
     }
-  } else {
+  } else {  // BERHENTI
     digitalWrite(MOTOR_IN1, LOW);
     digitalWrite(MOTOR_IN2, LOW);
     analogWrite(MOTOR_EN, 0);
+    Serial.println("Motor BERHENTI");
+    
+    // Jika mode manual dan stop diperintahkan, lock motor
+    if (currentMode == MANUAL) {
+      motorLocked = true;
+      Serial.println("Manual STOP - Motor LOCKED");
+    }
   }
 }
 
@@ -152,7 +205,7 @@ void handleRoot() {
 void handleData() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
 
-  StaticJsonDocument<300> doc;
+  StaticJsonDocument<400> doc;
   doc["temp"] = temp;
   doc["hum"] = hum;
   doc["rain1"] = r1;
@@ -160,8 +213,10 @@ void handleData() {
   doc["hour"] = jam;
   doc["minute"] = menit;
   doc["isRaining"] = isRaining;
-  doc["blindStatus"] = (blindStatus == TURUN) ? "closed" : "open";
+  doc["blindStatus"] = (blindStatus == TURUN) ? "closed" : (blindStatus == NAIK ? "opening" : "open");
   doc["mode"] = (currentMode == AUTO) ? "auto" : "manual";
+  doc["motorLocked"] = motorLocked;
+  doc["limitReached"] = limitReached;
 
   String output;
   serializeJson(doc, output);
@@ -174,13 +229,13 @@ void handleControl() {
   if (currentMode == MANUAL) {
     String action = server.arg("action");
     if (action == "naik") {
-      controlMotor(NAIK);
+      requestMotorControl(NAIK);
       server.send(200, "application/json", "{\"status\":\"ok\",\"action\":\"naik\"}");
     } else if (action == "turun") {
-      controlMotor(TURUN);
+      requestMotorControl(TURUN);
       server.send(200, "application/json", "{\"status\":\"ok\",\"action\":\"turun\"}");
     } else if (action == "stop") {
-      controlMotor(BERHENTI);
+      requestMotorControl(BERHENTI);
       server.send(200, "application/json", "{\"status\":\"ok\",\"action\":\"stop\"}");
     }
   } else {
@@ -194,9 +249,14 @@ void handleSetMode() {
   String mode = server.arg("mode");
   if (mode == "auto") {
     currentMode = AUTO;
+    motorLocked = false;
+    limitReached = false;
+    controlMotor(BERHENTI);
     server.send(200, "application/json", "{\"status\":\"ok\",\"mode\":\"auto\"}");
   } else if (mode == "manual") {
     currentMode = MANUAL;
+    motorLocked = false;
+    limitReached = false;
     controlMotor(BERHENTI);
     server.send(200, "application/json", "{\"status\":\"ok\",\"mode\":\"manual\"}");
   }
@@ -296,6 +356,9 @@ void loop() {
       float r_score = (r1 + r2) / 2.0;
       float decision_score = 0;
 
+      // Hitung target status berdasarkan kondisi
+      BlindStatus newTargetStatus;
+
       if (jam >= 7 && jam <= 18) {
         if (r_score > 45 || hum > 85) {
           decision_score = 1;
@@ -316,24 +379,40 @@ void loop() {
         }
       }
 
+      // Tentukan target status
       if (decision_score >= 0.5) {
         isRaining = true;
         weatherStatus = "Hujan";
-        if (blindStatus != TURUN) {
-          controlMotor(TURUN);
-        }
+        newTargetStatus = TURUN;
       } else {
         isRaining = false;
         weatherStatus = "Cerah";
-        if (blindStatus != NAIK) {
+        newTargetStatus = NAIK;
+      }
+
+      // Cek apakah target berubah
+      if (newTargetStatus != targetStatus) {
+        Serial.print("Target berubah dari ");
+        Serial.print(targetStatus == NAIK ? "NAIK" : "TURUN");
+        Serial.print(" ke ");
+        Serial.println(newTargetStatus == NAIK ? "NAIK" : "TURUN");
+        
+        targetStatus = newTargetStatus;
+        motorLocked = false;  // Unlock motor saat target berubah
+        limitReached = false;
+      }
+
+      // Eksekusi kontrol hanya jika motor tidak terkunci
+      if (!motorLocked) {
+        if (targetStatus == TURUN && blindStatus != TURUN) {
+          controlMotor(TURUN);
+        } else if (targetStatus == NAIK && blindStatus != NAIK) {
           controlMotor(NAIK);
         }
       }
 
-      // Serial.print("a33: ");
       Serial.print(analogRead(33));
       Serial.print(" || ");
-      // Serial.print("a25: ");
       Serial.print(analogRead(32));
       Serial.print(" || ");
       Serial.print(data.temperature);
@@ -344,7 +423,11 @@ void loop() {
       Serial.print(" || decision: ");
       Serial.print(decision_score);
       Serial.print(" || Status: ");
-      Serial.println(weatherStatus);
+      Serial.print(weatherStatus);
+      Serial.print(" || Target: ");
+      Serial.print(targetStatus == NAIK ? "NAIK" : "TURUN");
+      Serial.print(" || Locked: ");
+      Serial.println(motorLocked ? "YES" : "NO");
     }
   } else {
     if (Tdata - lastTdata1 >= 1000) {
@@ -360,32 +443,47 @@ void loop() {
       }
 
       Serial.print("Mode: MANUAL || Blind Status: ");
-      Serial.println(blindStatus == NAIK ? "NAIK" : (blindStatus == TURUN ? "TURUN" : "BERHENTI"));
+      Serial.print(blindStatus == NAIK ? "NAIK" : (blindStatus == TURUN ? "TURUN" : "BERHENTI"));
+      Serial.print(" || Locked: ");
+      Serial.println(motorLocked ? "YES" : "NO");
     }
   }
 
   if (Tdata - lastMqttPublish >= 5000) {
     lastMqttPublish = Tdata;
 
-    StaticJsonDocument<300> doc;
+    StaticJsonDocument<400> doc;
     doc["temp"] = temp;
     doc["hum"] = hum;
     doc["rain1"] = r1;
     doc["rain2"] = r2;
     doc["isRaining"] = isRaining;
     doc["blindStatus"] = (blindStatus == TURUN) ? "closed" : "open";
+    doc["motorLocked"] = motorLocked;
 
     String output;
     serializeJson(doc, output);
     client.publish(topic_status, output.c_str());
   }
 
-  if (digitalRead(LIMIT_SWITCH_ATAS) == LOW && blindStatus == NAIK) {
-    controlMotor(BERHENTI);
-    Serial.println("Limit atas tercapai - motor stop");
+  // Cek limit switch saat motor bergerak
+  if (blindStatus == NAIK && digitalRead(LIMIT_SWITCH_ATAS) == LOW) {  // Tertekan = LOW
+    digitalWrite(MOTOR_IN1, LOW);
+    digitalWrite(MOTOR_IN2, LOW);
+    analogWrite(MOTOR_EN, 0);
+    blindStatus = BERHENTI;
+    motorLocked = true;
+    limitReached = true;
+    Serial.println("Limit ATAS tercapai - Motor LOCKED");
   }
-  if (digitalRead(LIMIT_SWITCH_BAWAH) == LOW && blindStatus == TURUN) {
-    controlMotor(BERHENTI);
-    Serial.println("Limit bawah tercapai - motor stop");
+  
+  if (blindStatus == TURUN && digitalRead(LIMIT_SWITCH_BAWAH) == HIGH) {  // Tertekan = HIGH
+    digitalWrite(MOTOR_IN1, LOW);
+    digitalWrite(MOTOR_IN2, LOW);
+    analogWrite(MOTOR_EN, 0);
+    blindStatus = BERHENTI;
+    motorLocked = true;
+    limitReached = true;
+    Serial.println("Limit BAWAH tercapai - Motor LOCKED");
   }
 }
