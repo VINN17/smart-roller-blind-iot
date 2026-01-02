@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Jemuran IoT Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -50,7 +51,6 @@
             50% { opacity: 0.5; }
         }
         
-        /* Tab Navigation */
         .tab-navigation {
             background: white;
             border-radius: 15px;
@@ -82,7 +82,6 @@
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
         
-        /* Tab Content */
         .tab-content {
             display: none;
         }
@@ -113,7 +112,6 @@
             gap: 20px;
         }
         
-        /* Canvas Animation */
         .canvas-wrapper {
             position: relative;
             width: 100%;
@@ -127,7 +125,6 @@
             display: block;
         }
         
-        /* Stats Cards */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -151,7 +148,6 @@
             opacity: 0.9;
         }
         
-        /* Sensor Display */
         .sensor-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -179,7 +175,6 @@
             font-size: clamp(0.75rem, 2vw, 0.9rem);
         }
         
-        /* Controls */
         .control-section {
             margin-bottom: 20px;
         }
@@ -216,7 +211,6 @@
             gap: 10px;
         }
         
-        /* Logs */
         .log-container {
             background: #1e1e1e;
             color: #00ff00;
@@ -237,7 +231,6 @@
         .log-entry.warning { border-left-color: #ff9800; }
         .log-entry.error { border-left-color: #f44336; }
         
-        /* Settings */
         .settings-section {
             margin-bottom: 25px;
         }
@@ -279,14 +272,12 @@
             }
         }
         
-        /* Chart Container */
         .chart-container {
             position: relative;
             height: 300px;
             margin-bottom: 20px;
         }
         
-        /* Info Box */
         .info-box {
             background: #e3f2fd;
             border-left: 4px solid #2196F3;
@@ -299,7 +290,6 @@
         .info-box.warning { background: #fff3e0; border-left-color: #ff9800; }
         .info-box.error { background: #ffebee; border-left-color: #f44336; }
         
-        /* Theme Selector */
         .theme-selector {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
@@ -321,7 +311,6 @@
             box-shadow: 0 0 15px rgba(102, 126, 234, 0.5);
         }
 
-        /* Responsive Dashboard Grid */
         @media (max-width: 768px) {
             body {
                 padding: 10px;
@@ -342,10 +331,9 @@
     <div class="container">
         <div class="header">
             <h1 id="dashboardTitle">🌤️ Smart Jemuran IoT</h1>
-            <p><span class="status-indicator offline" id="statusIndicator"></span><span id="connectionStatus">Not Connected</span></p>
+            <p><span class="status-indicator offline" id="statusIndicator"></span><span id="connectionStatus">Connecting to MQTT...</span></p>
         </div>
 
-        <!-- Tab Navigation -->
         <div class="tab-navigation">
             <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
             <button class="tab-btn" onclick="switchTab('history')">📈 History</button>
@@ -353,9 +341,7 @@
             <button class="tab-btn" onclick="switchTab('settings')">⚙️ Settings</button>
         </div>
 
-        <!-- Dashboard Tab -->
         <div id="dashboard" class="tab-content active">
-            <!-- Stats Today -->
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-label">Deteksi Hujan Hari Ini</div>
@@ -380,7 +366,6 @@
             </div>
 
             <div class="grid">
-                <!-- Weather Animation -->
                 <div class="card">
                     <h2>🌦️ Animasi Cuaca Real-time</h2>
                     <div class="canvas-wrapper">
@@ -388,7 +373,6 @@
                     </div>
                 </div>
 
-                <!-- Real-time Sensors -->
                 <div class="card">
                     <h2>🌡️ Sensor Real-time</h2>
                     <div class="sensor-grid">
@@ -416,7 +400,6 @@
                 </div>
             </div>
 
-            <!-- Control Section in Dashboard -->
             <div class="card">
                 <h2>🎛️ Kontrol Roller Blind</h2>
                 <div class="control-section">
@@ -461,7 +444,6 @@
             </div>
         </div>
 
-        <!-- History Tab -->
         <div id="history" class="tab-content">
             <div class="card">
                 <h2>📈 Grafik Suhu & Kelembaban</h2>
@@ -485,7 +467,6 @@
             </div>
         </div>
 
-        <!-- Logs Tab -->
         <div id="logs" class="tab-content">
             <div class="card">
                 <h2>📝 Activity Logs</h2>
@@ -499,42 +480,21 @@
             </div>
         </div>
 
-        <!-- Settings Tab -->
         <div id="settings" class="tab-content">
             <div class="card">
                 <h2>⚙️ Pengaturan Sistem</h2>
                 
                 <div class="settings-section">
-                    <h3>🔌 Koneksi ESP32</h3>
+                    <h3>🔌 Koneksi MQTT</h3>
                     <div class="info-box">
-                        <strong>Petunjuk:</strong> Masukkan IP Address ESP32. IP akan muncul di Serial Monitor.
+                        <strong>Info:</strong> Dashboard otomatis terhubung ke broker.hivemq.com<br>
+                        Status: <span id="mqttStatus" style="font-weight: bold;">Connecting...</span>
                     </div>
                     <div class="input-group">
-                        <label>IP Address:</label>
-                        <input type="text" id="espIP" placeholder="192.168.1.100">
+                        <label>Client ID:</label>
+                        <input type="text" id="clientId" readonly>
                     </div>
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                        <button class="btn btn-primary" onclick="saveIP()">💾 Simpan</button>
-                        <button class="btn btn-success" onclick="testConnection()">🔌 Test</button>
-                    </div>
-                    <p id="ipStatus" style="margin-top: 10px; color: #666;"></p>
-                </div>
-
-                <div class="settings-section">
-                    <h3>🎯 Custom Threshold</h3>
-                    <div class="input-group">
-                        <label>Threshold Hujan (%):</label>
-                        <input type="number" id="rainThreshold" value="45" min="0" max="100">
-                    </div>
-                    <div class="input-group">
-                        <label>Threshold Kelembaban (%):</label>
-                        <input type="number" id="humThreshold" value="85" min="0" max="100">
-                    </div>
-                    <div class="input-group">
-                        <label>Threshold Suhu (°C):</label>
-                        <input type="number" id="tempThreshold" value="28" min="0" max="50">
-                    </div>
-                    <button class="btn btn-primary" onclick="saveThresholds()">💾 Simpan Threshold</button>
+                    <button class="btn btn-success" onclick="reconnectMQTT()">🔄 Reconnect</button>
                 </div>
 
                 <div class="settings-section">
@@ -544,12 +504,6 @@
                         <input type="text" id="dashboardName" placeholder="Smart Jemuran IoT">
                     </div>
                     <button class="btn btn-primary" onclick="saveName()">💾 Simpan Nama</button>
-                    
-                    <div class="input-group" style="margin-top: 15px;">
-                        <label>Interval Update (detik):</label>
-                        <input type="number" id="updateInterval" value="2" min="1" max="60">
-                    </div>
-                    <button class="btn btn-primary" onclick="saveInterval()">💾 Simpan Interval</button>
 
                     <div style="margin-top: 20px;">
                         <label style="display: block; margin-bottom: 10px; font-weight: 500;">Pilih Tema:</label>
@@ -583,13 +537,18 @@
     </div>
 
     <script>
+        // ==================== MQTT CONFIGURATION ====================
+        const MQTT_BROKER = 'wss://broker.hivemq.com:8884/mqtt';
+        const TOPIC_STATUS = 'jemuran/status';
+        const TOPIC_CONTROL = 'jemuran/control';
+        const TOPIC_MODE = 'jemuran/mode';
+        
+        let mqttClient;
+        let clientId = 'ESP32_Dashboard_' + Math.random().toString(16).substr(2, 8);
+        
         // ==================== GLOBAL VARIABLES ====================
-        let espIP = '';
-        let fetchInterval;
-        let updateIntervalTime = 2000;
         let currentTheme = 'purple';
         
-        // Data Storage
         let sensorHistory = {
             temp: [],
             hum: [],
@@ -613,56 +572,165 @@
         let logs = [];
         let currentMode = 'auto';
         
-        // Charts
         let tempHumChart, rainChart, blindChart;
         
-        // Canvas Animation
         let canvas, ctx;
         let clouds = [];
         let raindrops = [];
         let stars = [];
         let isDaytime = true;
         let isRaining = false;
-        let blindClosed = false; // Variable untuk status blind
+        let blindClosed = false;
         let animationFrame;
+
+        // ==================== MQTT FUNCTIONS ====================
+        function connectMQTT() {
+            addLog('info', 'Connecting to MQTT broker...');
+            document.getElementById('mqttStatus').textContent = 'Connecting...';
+            document.getElementById('mqttStatus').style.color = '#ff9800';
+            
+            mqttClient = mqtt.connect(MQTT_BROKER, {
+                clientId: clientId,
+                clean: true,
+                connectTimeout: 4000,
+                reconnectPeriod: 5000
+            });
+
+            mqttClient.on('connect', () => {
+                addLog('info', 'MQTT Connected!');
+                document.getElementById('statusIndicator').className = 'status-indicator online';
+                document.getElementById('connectionStatus').textContent = 'Connected (MQTT)';
+                document.getElementById('mqttStatus').textContent = 'Connected';
+                document.getElementById('mqttStatus').style.color = '#4CAF50';
+                
+                mqttClient.subscribe(TOPIC_STATUS, (err) => {
+                    if (!err) {
+                        addLog('info', `Subscribed to ${TOPIC_STATUS}`);
+                    }
+                });
+            });
+
+            mqttClient.on('message', (topic, message) => {
+                if (topic === TOPIC_STATUS) {
+                    try {
+                        const data = JSON.parse(message.toString());
+                        updateDashboard(data);
+                    } catch (e) {
+                        addLog('error', 'Failed to parse MQTT message');
+                    }
+                }
+            });
+
+            mqttClient.on('error', (err) => {
+                addLog('error', `MQTT Error: ${err.message}`);
+                document.getElementById('mqttStatus').textContent = 'Error';
+                document.getElementById('mqttStatus').style.color = '#f44336';
+            });
+
+            mqttClient.on('offline', () => {
+                addLog('warning', 'MQTT Offline');
+                document.getElementById('statusIndicator').className = 'status-indicator offline';
+                document.getElementById('connectionStatus').textContent = 'Disconnected';
+                document.getElementById('mqttStatus').textContent = 'Offline';
+                document.getElementById('mqttStatus').style.color = '#f44336';
+            });
+
+            mqttClient.on('reconnect', () => {
+                addLog('info', 'Reconnecting to MQTT...');
+                document.getElementById('mqttStatus').textContent = 'Reconnecting...';
+                document.getElementById('mqttStatus').style.color = '#ff9800';
+            });
+        }
+
+        function reconnectMQTT() {
+            if (mqttClient) {
+                mqttClient.end(true);
+            }
+            setTimeout(() => {
+                connectMQTT();
+            }, 500);
+        }
+
+        function publishMQTT(topic, message) {
+            if (mqttClient && mqttClient.connected) {
+                mqttClient.publish(topic, message);
+                addLog('info', `Published to ${topic}: ${message}`);
+            } else {
+                addLog('error', 'MQTT not connected');
+                alert('MQTT tidak terhubung. Coba reconnect.');
+            }
+        }
+
+        // ==================== UPDATE DASHBOARD ====================
+        function updateDashboard(data) {
+            document.getElementById('temp').textContent = data.temp.toFixed(1);
+            document.getElementById('hum').textContent = data.hum.toFixed(1);
+            document.getElementById('rain1').textContent = data.rain1;
+            document.getElementById('rain2').textContent = data.rain2;
+            
+            document.getElementById('blindStatus').textContent = data.blindStatus === 'closed' ? 'CLOSED' : 'OPEN';
+            document.getElementById('weatherCondition').textContent = data.isRaining ? '🌧️' : '☀️';
+            
+            const now = new Date();
+            isDaytime = now.getHours() >= 6 && now.getHours() < 18;
+            isRaining = data.isRaining;
+            blindClosed = data.blindStatus === 'closed';
+            
+            const timestamp = new Date().toLocaleTimeString('id-ID');
+            sensorHistory.timestamps.push(timestamp);
+            sensorHistory.temp.push(data.temp);
+            sensorHistory.hum.push(data.hum);
+            sensorHistory.rain1.push(data.rain1);
+            sensorHistory.rain2.push(data.rain2);
+            sensorHistory.blindStatus.push(data.blindStatus === 'closed' ? 1 : 0);
+            
+            saveHistory();
+            updateCharts();
+            
+            todayStats.tempSum += data.temp;
+            todayStats.humSum += data.hum;
+            todayStats.tempCount++;
+            todayStats.humCount++;
+            
+            if (data.isRaining && !todayStats.lastRainState) {
+                todayStats.rainCount++;
+                addLog('warning', 'Rain detected!');
+            }
+            todayStats.lastRainState = data.isRaining;
+            
+            if (data.blindStatus === 'closed' && todayStats.lastBlindState === 'open') {
+                todayStats.blindActiveCount++;
+                addLog('info', 'Blind closed');
+            }
+            todayStats.lastBlindState = data.blindStatus;
+            
+            updateStatsDisplay();
+            saveStats();
+        }
 
         // ==================== INITIALIZATION ====================
         window.addEventListener('load', () => {
+            document.getElementById('clientId').value = clientId;
             loadSettings();
             initCanvas();
             initCharts();
             addLog('info', 'Dashboard initialized');
-            
-            const savedIP = localStorage.getItem('espIP');
-            if (savedIP) {
-                espIP = savedIP;
-                document.getElementById('espIP').value = savedIP;
-                addLog('info', `Loaded saved IP: ${savedIP}`);
-                startFetching();
-            }
+            connectMQTT();
         });
 
         // ==================== STORAGE FUNCTIONS ====================
         function loadSettings() {
             const settings = JSON.parse(localStorage.getItem('dashboardSettings') || '{}');
             
-            if (settings.rainThreshold) document.getElementById('rainThreshold').value = settings.rainThreshold;
-            if (settings.humThreshold) document.getElementById('humThreshold').value = settings.humThreshold;
-            if (settings.tempThreshold) document.getElementById('tempThreshold').value = settings.tempThreshold;
             if (settings.dashboardName) {
                 document.getElementById('dashboardTitle').textContent = settings.dashboardName;
                 document.getElementById('dashboardName').value = settings.dashboardName;
-            }
-            if (settings.updateInterval) {
-                updateIntervalTime = settings.updateInterval * 1000;
-                document.getElementById('updateInterval').value = settings.updateInterval;
             }
             if (settings.theme) {
                 currentTheme = settings.theme;
                 applyTheme(currentTheme);
             }
             
-            // Load stats
             const savedStats = JSON.parse(localStorage.getItem('todayStats') || '{}');
             const today = new Date().toDateString();
             if (savedStats.date === today) {
@@ -670,14 +738,12 @@
                 updateStatsDisplay();
             }
             
-            // Load history
             const savedHistory = JSON.parse(localStorage.getItem('sensorHistory') || '{}');
             if (savedHistory.timestamps && savedHistory.timestamps.length > 0) {
                 sensorHistory = savedHistory;
                 updateCharts();
             }
             
-            // Load logs
             const savedLogs = JSON.parse(localStorage.getItem('activityLogs') || '[]');
             if (savedLogs.length > 0) {
                 logs = savedLogs;
@@ -687,11 +753,7 @@
 
         function saveSettings() {
             const settings = {
-                rainThreshold: document.getElementById('rainThreshold').value,
-                humThreshold: document.getElementById('humThreshold').value,
-                tempThreshold: document.getElementById('tempThreshold').value,
                 dashboardName: document.getElementById('dashboardName').value,
-                updateInterval: document.getElementById('updateInterval').value,
                 theme: currentTheme
             };
             localStorage.setItem('dashboardSettings', JSON.stringify(settings));
@@ -786,7 +848,6 @@
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Background
             if (isDaytime) {
                 const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
                 gradient.addColorStop(0, '#87CEEB');
@@ -800,7 +861,6 @@
             }
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Stars (night only)
             if (!isDaytime) {
                 stars.forEach(star => {
                     ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
@@ -810,7 +870,6 @@
                 });
             }
             
-            // Sun or Moon
             if (isDaytime) {
                 ctx.fillStyle = '#FFD700';
                 ctx.shadowBlur = 30;
@@ -829,7 +888,6 @@
                 ctx.shadowBlur = 0;
             }
             
-            // Clouds
             clouds.forEach(cloud => {
                 drawCloud(cloud);
                 cloud.x += cloud.speed;
@@ -838,7 +896,6 @@
                 }
             });
             
-            // Rain
             if (isRaining) {
                 if (raindrops.length < 100) {
                     for (let i = 0; i < 5; i++) {
@@ -868,26 +925,21 @@
                 raindrops = [];
             }
             
-            // Ground
             ctx.fillStyle = '#8B7355';
             ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
             
-            // Grass
             ctx.fillStyle = '#90EE90';
             for (let i = 0; i < canvas.width; i += 5) {
                 ctx.fillRect(i, canvas.height - 65, 2, 8);
             }
             
-            // Jemuran
             const jemuranX = canvas.width / 2;
             const jemuranY = canvas.height - 120;
             
-            // Poles
             ctx.fillStyle = '#8B4513';
             ctx.fillRect(jemuranX - 100, jemuranY, 8, 100);
             ctx.fillRect(jemuranX + 92, jemuranY, 8, 100);
             
-            // Rope
             ctx.strokeStyle = '#333';
             ctx.lineWidth = 3;
             ctx.beginPath();
@@ -895,7 +947,6 @@
             ctx.lineTo(jemuranX + 100, jemuranY + 20);
             ctx.stroke();
             
-            // Clothes (with wind effect)
             const windEffect = Math.sin(Date.now() / 500) * 2;
             const colors = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#95E1D3'];
             for (let i = 0; i < 4; i++) {
@@ -907,13 +958,11 @@
                 ctx.restore();
             }
             
-            // Roller Blind (Cover) - animasi nutupin jemuran
             if (blindClosed) {
                 const maxBlindHeight = 150;
                 ctx.fillStyle = 'rgba(80, 80, 80, 0.85)';
                 ctx.fillRect(jemuranX - 110, jemuranY - 10, 220, maxBlindHeight);
                 
-                // Blind pattern lines
                 ctx.strokeStyle = 'rgba(60, 60, 60, 0.5)';
                 ctx.lineWidth = 1;
                 for (let i = 0; i < maxBlindHeight; i += 10) {
@@ -923,7 +972,6 @@
                     ctx.stroke();
                 }
                 
-                // Blind bottom edge
                 ctx.fillStyle = '#555';
                 ctx.fillRect(jemuranX - 110, jemuranY - 10 + maxBlindHeight - 5, 220, 5);
             }
@@ -1062,132 +1110,8 @@
             addLog('info', 'Logs exported');
         }
 
-        // ==================== CONNECTION ====================
-        function saveIP() {
-            const ipInput = document.getElementById('espIP').value.trim();
-            if (ipInput) {
-                espIP = ipInput;
-                localStorage.setItem('espIP', espIP);
-                document.getElementById('ipStatus').textContent = `✅ IP disimpan: ${espIP}`;
-                document.getElementById('ipStatus').style.color = '#4CAF50';
-                addLog('info', `ESP32 IP saved: ${espIP}`);
-                startFetching();
-            } else {
-                document.getElementById('ipStatus').textContent = '❌ IP tidak valid';
-                document.getElementById('ipStatus').style.color = '#f44336';
-            }
-        }
-
-        function testConnection() {
-            const ipInput = document.getElementById('espIP').value.trim();
-            if (!ipInput) {
-                alert('Masukkan IP address terlebih dahulu');
-                return;
-            }
-            
-            document.getElementById('ipStatus').textContent = '🔄 Testing koneksi...';
-            document.getElementById('ipStatus').style.color = '#ff9800';
-            addLog('info', `Testing connection to ${ipInput}...`);
-            
-            fetch(`http://${ipInput}/data`)
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('ipStatus').textContent = `✅ Koneksi berhasil!`;
-                    document.getElementById('ipStatus').style.color = '#4CAF50';
-                    espIP = ipInput;
-                    localStorage.setItem('espIP', espIP);
-                    addLog('info', `Connection successful to ${espIP}`);
-                    startFetching();
-                })
-                .catch(error => {
-                    document.getElementById('ipStatus').textContent = `❌ Koneksi gagal`;
-                    document.getElementById('ipStatus').style.color = '#f44336';
-                    addLog('error', `Connection failed: ${error.message}`);
-                });
-        }
-
-        function startFetching() {
-            if (fetchInterval) clearInterval(fetchInterval);
-            fetchData();
-            fetchInterval = setInterval(fetchData, updateIntervalTime);
-        }
-
-        // ==================== DATA FETCHING ====================
-        function fetchData() {
-            if (!espIP) return;
-
-            fetch(`http://${espIP}/data`)
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('temp').textContent = data.temp.toFixed(1);
-                    document.getElementById('hum').textContent = data.hum.toFixed(1);
-                    document.getElementById('rain1').textContent = data.rain1;
-                    document.getElementById('rain2').textContent = data.rain2;
-                    
-                    document.getElementById('currentMode').textContent = data.mode.toUpperCase();
-                    document.getElementById('blindStatus').textContent = data.blindStatus === 'closed' ? 'CLOSED' : 'OPEN';
-                    document.getElementById('weatherCondition').textContent = data.isRaining ? '🌧️' : '☀️';
-                    
-                    isDaytime = data.hour >= 6 && data.hour < 18;
-                    isRaining = data.isRaining;
-                    blindClosed = data.blindStatus === 'closed'; // Update status blind untuk animasi
-                    
-                    const timestamp = new Date().toLocaleTimeString('id-ID');
-                    sensorHistory.timestamps.push(timestamp);
-                    sensorHistory.temp.push(data.temp);
-                    sensorHistory.hum.push(data.hum);
-                    sensorHistory.rain1.push(data.rain1);
-                    sensorHistory.rain2.push(data.rain2);
-                    sensorHistory.blindStatus.push(data.blindStatus === 'closed' ? 1 : 0);
-                    
-                    saveHistory();
-                    updateCharts();
-                    
-                    todayStats.tempSum += data.temp;
-                    todayStats.humSum += data.hum;
-                    todayStats.tempCount++;
-                    todayStats.humCount++;
-                    
-                    if (data.isRaining && !todayStats.lastRainState) {
-                        todayStats.rainCount++;
-                        addLog('warning', 'Rain detected!');
-                    }
-                    todayStats.lastRainState = data.isRaining;
-                    
-                    if (data.blindStatus === 'closed' && todayStats.lastBlindState === 'open') {
-                        todayStats.blindActiveCount++;
-                        addLog('info', 'Blind closed');
-                    }
-                    todayStats.lastBlindState = data.blindStatus;
-                    
-                    updateStatsDisplay();
-                    saveStats();
-                    
-                    document.getElementById('statusIndicator').className = 'status-indicator online';
-                    document.getElementById('connectionStatus').textContent = 'Connected';
-                })
-                .catch(error => {
-                    document.getElementById('statusIndicator').className = 'status-indicator offline';
-                    document.getElementById('connectionStatus').textContent = 'Disconnected';
-                });
-        }
-
-        function updateStatsDisplay() {
-            document.getElementById('rainCountToday').textContent = todayStats.rainCount;
-            document.getElementById('avgTempToday').textContent = todayStats.tempCount > 0 
-                ? (todayStats.tempSum / todayStats.tempCount).toFixed(1) : '--';
-            document.getElementById('avgHumToday').textContent = todayStats.humCount > 0 
-                ? (todayStats.humSum / todayStats.humCount).toFixed(1) : '--';
-            document.getElementById('blindActiveToday').textContent = todayStats.blindActiveCount;
-        }
-
         // ==================== CONTROL ====================
         function setMode(mode) {
-            if (!espIP) {
-                alert('Masukkan IP ESP32 terlebih dahulu');
-                return;
-            }
-
             currentMode = mode;
             const btnAuto = document.getElementById('btnAuto');
             const btnManual = document.getElementById('btnManual');
@@ -1206,61 +1130,36 @@
                 autoInfo.style.display = 'none';
             }
 
-            fetch(`http://${espIP}/setMode?mode=${mode}`)
-                .then(response => response.json())
-                .then(data => {
-                    addLog('info', `Mode changed to ${mode.toUpperCase()}`);
-                })
-                .catch(error => {
-                    addLog('error', `Failed to change mode: ${error.message}`);
-                });
+            publishMQTT(TOPIC_MODE, mode);
+            document.getElementById('currentMode').textContent = mode.toUpperCase();
         }
 
         function controlBlind(action) {
-            if (!espIP) {
-                alert('Masukkan IP ESP32 terlebih dahulu');
-                return;
+            publishMQTT(TOPIC_CONTROL, action);
+            
+            if (action === 'turun') {
+                blindClosed = true;
+            } else if (action === 'naik') {
+                blindClosed = false;
             }
+        }
 
-            fetch(`http://${espIP}/control?action=${action}`)
-                .then(response => response.json())
-                .then(data => {
-                    addLog('info', `Blind action: ${action.toUpperCase()}`);
-                    
-                    // Update animasi blind secara manual untuk response cepat
-                    if (action === 'turun') {
-                        blindClosed = true;
-                    } else if (action === 'naik') {
-                        blindClosed = false;
-                    }
-                })
-                .catch(error => {
-                    addLog('error', `Blind control failed: ${error.message}`);
-                });
+        function updateStatsDisplay() {
+            document.getElementById('rainCountToday').textContent = todayStats.rainCount;
+            document.getElementById('avgTempToday').textContent = todayStats.tempCount > 0 
+                ? (todayStats.tempSum / todayStats.tempCount).toFixed(1) : '--';
+            document.getElementById('avgHumToday').textContent = todayStats.humCount > 0 
+                ? (todayStats.humSum / todayStats.humCount).toFixed(1) : '--';
+            document.getElementById('blindActiveToday').textContent = todayStats.blindActiveCount;
         }
 
         // ==================== SETTINGS ====================
-        function saveThresholds() {
-            saveSettings();
-            addLog('info', 'Thresholds saved');
-            alert('Threshold berhasil disimpan!');
-        }
-
         function saveName() {
             const name = document.getElementById('dashboardName').value;
             document.getElementById('dashboardTitle').textContent = name || '🌤️ Smart Jemuran IoT';
             saveSettings();
             addLog('info', `Dashboard name changed to: ${name}`);
             alert('Nama berhasil disimpan!');
-        }
-
-        function saveInterval() {
-            const interval = parseInt(document.getElementById('updateInterval').value);
-            updateIntervalTime = interval * 1000;
-            saveSettings();
-            startFetching();
-            addLog('info', `Update interval changed to ${interval}s`);
-            alert('Interval update berhasil diubah!');
         }
 
         function setTheme(theme) {
