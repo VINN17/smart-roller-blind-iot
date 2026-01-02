@@ -118,11 +118,13 @@
             height: 400px;
             border-radius: 10px;
             overflow: hidden;
+            background: #87CEEB;
         }
         #weatherCanvas {
             width: 100%;
             height: 100%;
             display: block;
+            background: transparent;
         }
         
         .stats-grid {
@@ -663,32 +665,47 @@
 
         // ==================== UPDATE DASHBOARD ====================
         function updateDashboard(data) {
-            document.getElementById('temp').textContent = data.temp.toFixed(1);
-            document.getElementById('hum').textContent = data.hum.toFixed(1);
-            document.getElementById('rain1').textContent = data.rain1;
-            document.getElementById('rain2').textContent = data.rain2;
+            if (!data) {
+                console.warn('No data received');
+                return;
+            }
+            
+            // Update sensor displays
+            document.getElementById('temp').textContent = (data.temp || 0).toFixed(1);
+            document.getElementById('hum').textContent = (data.hum || 0).toFixed(1);
+            document.getElementById('rain1').textContent = data.rain1 || 0;
+            document.getElementById('rain2').textContent = data.rain2 || 0;
             
             document.getElementById('blindStatus').textContent = data.blindStatus === 'closed' ? 'CLOSED' : 'OPEN';
             document.getElementById('weatherCondition').textContent = data.isRaining ? '🌧️' : '☀️';
             
             const now = new Date();
             isDaytime = now.getHours() >= 6 && now.getHours() < 18;
-            isRaining = data.isRaining;
+            isRaining = data.isRaining || false;
             blindClosed = data.blindStatus === 'closed';
             
             const timestamp = new Date().toLocaleTimeString('id-ID');
+            
+            // Ensure arrays exist
+            if (!sensorHistory.timestamps) sensorHistory.timestamps = [];
+            if (!sensorHistory.temp) sensorHistory.temp = [];
+            if (!sensorHistory.hum) sensorHistory.hum = [];
+            if (!sensorHistory.rain1) sensorHistory.rain1 = [];
+            if (!sensorHistory.rain2) sensorHistory.rain2 = [];
+            if (!sensorHistory.blindStatus) sensorHistory.blindStatus = [];
+            
             sensorHistory.timestamps.push(timestamp);
-            sensorHistory.temp.push(data.temp);
-            sensorHistory.hum.push(data.hum);
-            sensorHistory.rain1.push(data.rain1);
-            sensorHistory.rain2.push(data.rain2);
+            sensorHistory.temp.push(data.temp || 0);
+            sensorHistory.hum.push(data.hum || 0);
+            sensorHistory.rain1.push(data.rain1 || 0);
+            sensorHistory.rain2.push(data.rain2 || 0);
             sensorHistory.blindStatus.push(data.blindStatus === 'closed' ? 1 : 0);
             
             saveHistory();
             updateCharts();
             
-            todayStats.tempSum += data.temp;
-            todayStats.humSum += data.hum;
+            todayStats.tempSum += (data.temp || 0);
+            todayStats.humSum += (data.hum || 0);
             todayStats.tempCount++;
             todayStats.humCount++;
             
@@ -696,13 +713,13 @@
                 todayStats.rainCount++;
                 addLog('warning', 'Rain detected!');
             }
-            todayStats.lastRainState = data.isRaining;
+            todayStats.lastRainState = data.isRaining || false;
             
             if (data.blindStatus === 'closed' && todayStats.lastBlindState === 'open') {
                 todayStats.blindActiveCount++;
                 addLog('info', 'Blind closed');
             }
-            todayStats.lastBlindState = data.blindStatus;
+            todayStats.lastBlindState = data.blindStatus || 'open';
             
             updateStatsDisplay();
             saveStats();
@@ -712,7 +729,12 @@
         window.addEventListener('load', () => {
             document.getElementById('clientId').value = clientId;
             loadSettings();
-            initCanvas();
+            
+            // Delay canvas init to ensure DOM is ready
+            setTimeout(() => {
+                initCanvas();
+            }, 100);
+            
             initCharts();
             addLog('info', 'Dashboard initialized');
             connectMQTT();
@@ -729,6 +751,14 @@
             if (settings.theme) {
                 currentTheme = settings.theme;
                 applyTheme(currentTheme);
+                // Update selected theme in UI
+                document.querySelectorAll('.theme-option').forEach((opt, idx) => {
+                    opt.classList.remove('selected');
+                    const themes = ['purple', 'blue', 'green', 'orange'];
+                    if (themes[idx] === currentTheme) {
+                        opt.classList.add('selected');
+                    }
+                });
             }
             
             const savedStats = JSON.parse(localStorage.getItem('todayStats') || '{}');
@@ -739,13 +769,16 @@
             }
             
             const savedHistory = JSON.parse(localStorage.getItem('sensorHistory') || '{}');
-            if (savedHistory.timestamps && savedHistory.timestamps.length > 0) {
+            if (savedHistory && savedHistory.timestamps && savedHistory.timestamps.length > 0) {
                 sensorHistory = savedHistory;
-                updateCharts();
+                // Delay chart update until charts are initialized
+                setTimeout(() => {
+                    updateCharts();
+                }, 500);
             }
             
             const savedLogs = JSON.parse(localStorage.getItem('activityLogs') || '[]');
-            if (savedLogs.length > 0) {
+            if (savedLogs && savedLogs.length > 0) {
                 logs = savedLogs;
                 displayLogs();
             }
@@ -797,22 +830,44 @@
 
         // ==================== CANVAS ANIMATION ====================
         function initCanvas() {
+            console.log('Initializing canvas...');
             canvas = document.getElementById('weatherCanvas');
+            
+            if (!canvas) {
+                console.error('Canvas element not found!');
+                setTimeout(initCanvas, 500);
+                return;
+            }
+            
             ctx = canvas.getContext('2d');
+            console.log('Canvas context created');
             
             function resize() {
-                canvas.width = canvas.offsetWidth;
-                canvas.height = canvas.offsetHeight;
+                const wrapper = canvas.parentElement;
+                const rect = wrapper.getBoundingClientRect();
+                
+                // Set canvas size
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                
+                console.log(`Canvas resized to: ${canvas.width}x${canvas.height}`);
+                
+                // Reinit elements
                 initClouds();
                 initStars();
             }
+            
             resize();
             window.addEventListener('resize', resize);
             
+            // Force first frame
+            console.log('Starting animation...');
             animate();
         }
 
         function initClouds() {
+            if (!canvas || canvas.width === 0) return;
+            
             clouds = [];
             for (let i = 0; i < 5; i++) {
                 clouds.push({
@@ -822,9 +877,12 @@
                     speed: Math.random() * 0.5 + 0.2
                 });
             }
+            console.log(`Initialized ${clouds.length} clouds`);
         }
 
         function initStars() {
+            if (!canvas || canvas.width === 0) return;
+            
             stars = [];
             for (let i = 0; i < 50; i++) {
                 stars.push({
@@ -834,6 +892,7 @@
                     opacity: Math.random()
                 });
             }
+            console.log(`Initialized ${stars.length} stars`);
         }
 
         function drawCloud(cloud) {
@@ -846,6 +905,18 @@
         }
 
         function animate() {
+            if (!canvas || !ctx) {
+                console.warn('Canvas not ready');
+                animationFrame = requestAnimationFrame(animate);
+                return;
+            }
+            
+            if (canvas.width === 0 || canvas.height === 0) {
+                animationFrame = requestAnimationFrame(animate);
+                return;
+            }
+            
+            // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             if (isDaytime) {
@@ -1059,19 +1130,29 @@
         }
 
         function updateCharts() {
+            if (!tempHumChart || !rainChart || !blindChart) {
+                console.warn('Charts not initialized yet');
+                return;
+            }
+            
+            if (!sensorHistory || !sensorHistory.timestamps) {
+                console.warn('Sensor history not ready');
+                return;
+            }
+            
             tempHumChart.data.labels = sensorHistory.timestamps.slice(-20);
             tempHumChart.data.datasets[0].data = sensorHistory.temp.slice(-20);
             tempHumChart.data.datasets[1].data = sensorHistory.hum.slice(-20);
-            tempHumChart.update();
+            tempHumChart.update('none'); // Disable animation for better performance
 
             rainChart.data.labels = sensorHistory.timestamps.slice(-20);
             rainChart.data.datasets[0].data = sensorHistory.rain1.slice(-20);
             rainChart.data.datasets[1].data = sensorHistory.rain2.slice(-20);
-            rainChart.update();
+            rainChart.update('none');
 
             blindChart.data.labels = sensorHistory.timestamps.slice(-20);
             blindChart.data.datasets[0].data = sensorHistory.blindStatus.slice(-20);
-            blindChart.update();
+            blindChart.update('none');
         }
 
         // ==================== LOGS ====================
