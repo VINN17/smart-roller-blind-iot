@@ -359,6 +359,8 @@ function updateDashboard(data, syncToCloud = false) {
             isRaining: isRain,
             mode: mode,
             lastUpdate: Date.now()
+        }).catch(err => {
+            console.warn('Firebase status sync (check Firebase rules):', err.message);
         });
 
         db.ref('jemuran/history').push({
@@ -368,6 +370,8 @@ function updateDashboard(data, syncToCloud = false) {
             rain1,
             rain2,
             blindStatus: isClosed ? 'closed' : 'open'
+        }).catch(err => {
+            console.warn('Firebase history push (check Firebase rules):', err.message);
         });
     }
 }
@@ -792,9 +796,9 @@ function publishMQTT(topic, message) {
 
     if (isFirebaseReady && db) {
         if (topic === TOPIC_CONTROL) {
-            db.ref('jemuran/control').set({ command: message, timestamp: Date.now() });
+            db.ref('jemuran/control').set({ command: message, timestamp: Date.now() }).catch(() => {});
         } else if (topic === TOPIC_MODE) {
-            db.ref('jemuran/mode').set({ mode: message, timestamp: Date.now() });
+            db.ref('jemuran/mode').set({ mode: message, timestamp: Date.now() }).catch(() => {});
         }
     }
 }
@@ -843,7 +847,7 @@ function addLog(type, msg) {
     renderLogs();
 
     if (isFirebaseReady && db) {
-        db.ref('jemuran/logs').push(log);
+        db.ref('jemuran/logs').push(log).catch(() => {});
     }
 }
 
