@@ -114,16 +114,19 @@ body {
     border-bottom: 1px solid var(--border-subtle);
 }
 
-.brand-icon {
+.brand-logo-img {
     width: 42px;
     height: 42px;
     border-radius: 12px;
-    background: var(--primary-gradient);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.4rem;
-    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+    object-fit: cover;
+    box-shadow: 0 4px 18px rgba(249, 115, 22, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    transition: var(--transition);
+}
+
+.brand-logo-img:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 22px rgba(249, 115, 22, 0.5);
 }
 
 .brand-text h2 {
