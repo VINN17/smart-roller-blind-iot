@@ -692,10 +692,7 @@ function animateHeroStage() {
         }
     });
 
-    // 3. Draw Fluttering Clothes on Clothesline (Dynamic Wind Physics)
-    drawAnimatedClothes(Date.now(), latestData.wind || 18);
-
-    // 4. Draw Raindrops if raining
+    // 3. Draw Raindrops if raining
     if (isRain) {
         if (raindrops.length < 80) {
             for (let i = 0; i < 4; i++) {
@@ -722,101 +719,6 @@ function animateHeroStage() {
     }
 
     animationFrame = requestAnimationFrame(animateHeroStage);
-}
-
-function drawAnimatedClothes(time, windSpeed) {
-    if (!ctx || !canvas) return;
-
-    // Relative coordinates matching the balcony clothesline in the 3D scene
-    const cW = canvas.width;
-    const cH = canvas.height;
-    
-    // Scale and position relative to canvas size
-    const lineStartX = cW * 0.32;
-    const lineY = cH * 0.37;
-    const shirtWidth = Math.max(cW * 0.075, 50);
-    const shirtHeight = shirtWidth * 1.35;
-    const gap = shirtWidth * 1.35;
-
-    const windIntensity = Math.min(Math.max((windSpeed || 15) / 12, 0.7), 2.8);
-
-    const shirts = [
-        { color: '#2563EB', lightColor: '#3B82F6', offset: 0, x: lineStartX },
-        { color: '#DC2626', lightColor: '#EF4444', offset: 1.8, x: lineStartX + gap },
-        { color: '#059669', lightColor: '#10B981', offset: 3.5, x: lineStartX + gap * 2 }
-    ];
-
-    shirts.forEach((shirt, idx) => {
-        const t = time * 0.003 * windIntensity + shirt.offset;
-        const mainAngle = Math.sin(t) * 0.18 * windIntensity + (windIntensity * 0.08);
-        const flutter = Math.sin(t * 2.2) * 10 * windIntensity;
-        const hemSkew = Math.cos(t * 1.6) * 14 * windIntensity;
-
-        ctx.save();
-        // Pivot point at the clothesline clips
-        ctx.translate(shirt.x + shirtWidth / 2, lineY);
-        ctx.rotate(mainAngle);
-
-        // Draw Clothes Clips (Jepitan Baju)
-        ctx.fillStyle = '#D97706';
-        ctx.fillRect(-shirtWidth * 0.38, -6, 5, 12);
-        ctx.fillRect(shirtWidth * 0.38 - 5, -6, 5, 12);
-
-        // T-Shirt Gradient
-        const grad = ctx.createLinearGradient(-shirtWidth / 2, 0, shirtWidth / 2 + flutter, shirtHeight);
-        grad.addColorStop(0, shirt.lightColor);
-        grad.addColorStop(1, shirt.color);
-        ctx.fillStyle = grad;
-
-        // Draw Billowing T-Shirt Path with Bezier Curves
-        ctx.beginPath();
-        const halfW = shirtWidth / 2;
-        
-        // Collar
-        ctx.moveTo(-halfW * 0.7, 0);
-        ctx.quadraticCurveTo(0, 10, halfW * 0.7, 0);
-        
-        // Right shoulder & sleeve
-        ctx.lineTo(halfW * 1.15, 6);
-        ctx.lineTo(halfW * 1.35 + flutter * 0.3, shirtHeight * 0.32);
-        ctx.lineTo(halfW * 0.85, shirtHeight * 0.38);
-        
-        // Right body side (curving with wind)
-        ctx.bezierCurveTo(
-            halfW * 0.9 + flutter * 0.5, shirtHeight * 0.65,
-            halfW * 0.95 + hemSkew, shirtHeight * 0.85,
-            halfW * 0.9 + hemSkew, shirtHeight
-        );
-        
-        // Bottom hem (fluttering wave)
-        ctx.quadraticCurveTo(
-            flutter * 0.5, shirtHeight - 4 + Math.sin(t * 3) * 6,
-            -halfW * 0.9 + hemSkew * 0.7, shirtHeight
-        );
-        
-        // Left body side
-        ctx.bezierCurveTo(
-            -halfW * 0.95 + hemSkew * 0.7, shirtHeight * 0.85,
-            -halfW * 0.9 + flutter * 0.4, shirtHeight * 0.65,
-            -halfW * 0.85, shirtHeight * 0.38
-        );
-        
-        // Left sleeve
-        ctx.lineTo(-halfW * 1.35 + flutter * 0.2, shirtHeight * 0.32);
-        ctx.lineTo(-halfW * 1.15, 6);
-        ctx.closePath();
-        ctx.fill();
-
-        // Subtle shadow / fold creases
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(-halfW * 0.2, shirtHeight * 0.2);
-        ctx.quadraticCurveTo(flutter * 0.3, shirtHeight * 0.6, -halfW * 0.1 + hemSkew * 0.5, shirtHeight * 0.9);
-        ctx.stroke();
-
-        ctx.restore();
-    });
 }
 
 // ==================== FIREBASE REALTIME CLOUD ====================
