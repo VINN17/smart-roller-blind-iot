@@ -1,6 +1,6 @@
 # 🌤️ Smart Roller Blind IoT (Jemuran Pintar)
 
-Sistem jemuran otomatis berbasis **ESP32** dan **Web Dashboard IoT Real-time** menggunakan komunikasi protokol **MQTT**. Sistem ini dapat mendeteksi cuaca panas dan hujan secara otomatis untuk membuka dan menutup roller blind jemuran, serta dilengkapi mode kontrol manual melalui web.
+Sistem jemuran otomatis berbasis **ESP32** dan **Web Dashboard IoT Real-time** menggunakan komunikasi **Dual Cloud (MQTT Broker + Firebase Realtime Database)**. Sistem ini mendeteksi cuaca panas dan hujan secara otomatis untuk membuka dan menutup roller blind jemuran, serta dilengkapi mode kontrol manual melalui web.
 
 🌐 **Live Dashboard (GitHub Pages):** [https://vinn17.github.io/smart-roller-blind-iot/](https://vinn17.github.io/smart-roller-blind-iot/)
 
@@ -13,9 +13,9 @@ smart-roller-blind-iot/
 ├── css/
 │   └── style.css            # Desain antarmuka & styling responsive
 ├── js/
-│   └── app.js               # Logika Web, MQTT HiveMQ WebSocket, Chart.js & Animasi Cuaca
+│   └── app.js               # Logika Web, Firebase Cloud Sync, MQTT HiveMQ, Chart.js & Animasi Cuaca
 ├── firmware/
-│   └── jemuran.ino          # Kode program ESP32 / Arduino
+│   └── jemuran.ino          # Kode program ESP32 / Arduino (Dual publish MQTT & Firebase)
 ├── index.html               # Halaman utama web dashboard
 ├── .gitignore               # Konfigurasi ignore file git
 └── README.md                # Dokumentasi proyek & panduan setup
@@ -25,6 +25,7 @@ smart-roller-blind-iot/
 
 ## 🚀 Fitur Utama
 
+- 🔥 **Firebase Cloud Sync**: Riwayat sensor, statistik, dan log tersimpan di cloud gratis dan **sinkron otomatis di semua perangkat/user secara real-time**.
 - 📊 **Monitoring Real-time**: Pembacaan suhu (°C), kelembaban (%), dan dua sensor hujan (%).
 - 🌦️ **Animasi Cuaca Dinamis**: Canvas animasi interaktif yang merefleksikan kondisi siang/malam, hujan, dan posisi tirai jemuran.
 - 📈 **Grafik Riwayat Data**: Visualisasi grafik interaktif untuk suhu, kelembaban, level hujan, dan status motor menggunakan Chart.js.
@@ -36,10 +37,17 @@ smart-roller-blind-iot/
 
 ---
 
-## 🛠️ Konfigurasi MQTT
+## ☁️ Konfigurasi Cloud (Firebase & MQTT)
 
-Web Dashboard dan ESP32 terhubung melalui MQTT Broker publik HiveMQ:
+### 1. Firebase Realtime Database
+* **Database URL**: `https://jemuran-iot-56180-default-rtdb.asia-southeast1.firebasedatabase.app`
+* **Node Real-time**:
+  * `/jemuran/status`: Menyimpan status sensor terakhir.
+  * `/jemuran/history`: Menyimpan titik data grafik riwayat sensor.
+  * `/jemuran/control`: Menerima perintah motor (*naik / turun / stop*).
+  * `/jemuran/mode`: Menerima perintah mode (*auto / manual*).
 
+### 2. MQTT HiveMQ Broker
 | Parameter | Konfigurasi Web Dashboard | Konfigurasi ESP32 |
 | :--- | :--- | :--- |
 | **Broker URL** | `wss://broker.hivemq.com:8884/mqtt` | `broker.hivemq.com` |
@@ -85,19 +93,16 @@ Agar web dashboard kamu dapat diakses secara publik di internet melalui GitHub P
 1. **Push semua file terbaru ke GitHub:**
    ```bash
    git add .
-   git commit -m "Restructure repository and setup modular files"
+   git commit -m "Integrate Firebase Realtime Database cloud sync"
    git push origin main
    ```
 2. Buka repository kamu di browser: **[VINN17/smart-roller-blind-iot](https://github.com/VINN17/smart-roller-blind-iot)**
-3. Klik menu **Settings** (di sebelah kanan tab *Insights*).
-4. Di panel sebelah kiri, pilih menu **Pages** (pada bagian *Code and automation*).
-5. Pada bagian **Build and deployment**:
+3. Klik menu **Settings** > **Pages** (di sidebar kiri).
+4. Pada bagian **Build and deployment**:
    - **Source**: `Deploy from a branch`
    - **Branch**: Pilih `main` dan folder `/(root)`
    - Klik **Save**.
-6. Tunggu sekitar 1–2 menit hingga proses build selesai.
-7. Website kamu sudah aktif dan bisa diakses di:
-   👉 **`https://vinn17.github.io/smart-roller-blind-iot/`**
+5. Live website kamu aktif di: 👉 **`https://vinn17.github.io/smart-roller-blind-iot/`**
 
 ---
 

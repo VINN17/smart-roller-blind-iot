@@ -1,3 +1,18 @@
+// ==================== FIREBASE CONFIGURATION ====================
+const firebaseConfig = {
+    apiKey: "AIzaSyB0uVd7K3G2mo4bmv0U_TIeQiUtzyhcwnk",
+    authDomain: "jemuran-iot-56180.firebaseapp.com",
+    databaseURL: "https://jemuran-iot-56180-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "jemuran-iot-56180",
+    storageBucket: "jemuran-iot-56180.firebasestorage.app",
+    messagingSenderId: "631924407234",
+    appId: "1:631924407234:web:4a6854840dcb2e2fd8345b",
+    measurementId: "G-KE3P5EHL3S"
+};
+
+let db = null;
+let isFirebaseReady = false;
+
 // ==================== MQTT CONFIGURATION ====================
 const MQTT_BROKER = 'wss://broker.hivemq.com:8884/mqtt';
 const TOPIC_STATUS = 'jemuran/status';
@@ -44,6 +59,70 @@ let isRaining = false;
 let blindClosed = false;
 let animationFrame;
 
+// ==================== FIREBASE INIT & LISTENERS ====================
+function initFirebase() {
+    try {
+        if (typeof firebase !== 'undefined') {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            db = firebase.database();
+            isFirebaseReady = true;
+            console.log('Firebase Realtime Database initialized successfully');
+            
+            const fbStatusEl = document.getElementById('firebaseStatus');
+            if (fbStatusEl) {
+                fbStatusEl.textContent = 'Connected (Real-time Cloud Sync Active)';
+                fbStatusEl.style.color = '#4CAF50';
+            }
+
+            // 1. Listen for latest status in real-time
+            db.ref('jemuran/status').on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    updateDashboard(data, false); // false = jangan loop balik kirim ke Firebase
+                }
+            });
+
+            // 2. Load cloud sensor history for all users
+            db.ref('jemuran/history').limitToLast(25).on('value', (snapshot) => {
+                const historyData = snapshot.val();
+                if (historyData) {
+                    const temp = [], hum = [], rain1 = [], rain2 = [], timestamps = [], blindStatus = [];
+                    Object.values(historyData).forEach(item => {
+                        timestamps.push(item.time || '');
+                        temp.push(item.temp || 0);
+                        hum.push(item.hum || 0);
+                        rain1.push(item.rain1 || 0);
+                        rain2.push(item.rain2 || 0);
+                        blindStatus.push(item.blindStatus === 'closed' ? 1 : 0);
+                    });
+                    sensorHistory = { temp, hum, rain1, rain2, timestamps, blindStatus };
+                    updateCharts();
+                }
+            });
+
+            // 3. Listen for logs
+            db.ref('jemuran/logs').limitToLast(30).on('value', (snapshot) => {
+                const logsData = snapshot.val();
+                if (logsData) {
+                    logs = Object.values(logsData);
+                    displayLogs();
+                }
+            });
+            
+            addLog('info', 'Firebase Cloud Database connected');
+        }
+    } catch (err) {
+        console.error('Firebase initialization error:', err);
+        const fbStatusEl = document.getElementById('firebaseStatus');
+        if (fbStatusEl) {
+            fbStatusEl.textContent = 'Error connecting: ' + err.message;
+            fbStatusEl.style.color = '#f44336';
+        }
+    }
+}
+
 // ==================== MQTT FUNCTIONS ====================
 function connectMQTT() {
     addLog('info', 'Connecting to MQTT broker...');
@@ -67,9 +146,9 @@ function connectMQTT() {
         const mqttStatus = document.getElementById('mqttStatus');
         
         if (statusInd) statusInd.className = 'status-indicator online';
-        if (connStatus) connStatus.textContent = 'Connected (MQTT)';
+        if (connStatus) connStatus.textContent = 'Online (Cloud & MQTT)';
         if (mqttStatus) {
-            mqttStatus.textContent = 'Connected';
+            mqttStatus.textContent = 'Connected (Port 8884)';
             mqttStatus.style.color = '#4CAF50';
         }
         
@@ -84,7 +163,7 @@ function connectMQTT() {
         if (topic === TOPIC_STATUS) {
             try {
                 const data = JSON.parse(message.toString());
-                updateDashboard(data);
+                updateDashboard(data, true); // true = sync ke Firebase jika MQTT yang duluan dapat
             } catch (e) {
                 addLog('error', 'Failed to parse MQTT message');
             }
@@ -106,8 +185,8 @@ function connectMQTT() {
         const connStatus = document.getElementById('connectionStatus');
         const mqttStatus = document.getElementById('mqttStatus');
         
-        if (statusInd) statusInd.className = 'status-indicator offline';
-        if (connStatus) connStatus.textContent = 'Disconnected';
+        if (statusInd && !isFirebaseReady) statusInd.className = 'status-indicator offline';
+        if (connStatus) connStatus.textContent = isFirebaseReady ? 'Online (Firebase Cloud)' : 'Disconnected';
         if (mqttStatus) {
             mqttStatus.textContent = 'Offline';
             mqttStatus.style.color = '#f44336';
@@ -137,18 +216,21 @@ function publishMQTT(topic, message) {
     if (mqttClient && mqttClient.connected) {
         mqttClient.publish(topic, message);
         addLog('info', `Published to ${topic}: ${message}`);
-    } else {
-        addLog('error', 'MQTT not connected');
-        alert('MQTT tidak terhubung. Coba reconnect.');
+    }
+    
+    // Simpan juga ke Firebase Realtime Database
+    if (isFirebaseReady && db) {
+        if (topic === TOPIC_CONTROL) {
+            db.ref('jemuran/control').set({ command: message, timestamp: Date.now() });
+        } else if (topic === TOPIC_MODE) {
+            db.ref('jemuran/mode').set({ mode: message, timestamp: Date.now() });
+        }
     }
 }
 
 // ==================== UPDATE DASHBOARD ====================
-function updateDashboard(data) {
-    if (!data) {
-        console.warn('No data received');
-        return;
-    }
+function updateDashboard(data, syncToCloud = false) {
+    if (!data) return;
     
     // Update sensor displays
     const tempEl = document.getElementById('temp');
@@ -157,14 +239,16 @@ function updateDashboard(data) {
     const rain2El = document.getElementById('rain2');
     const blindStatusEl = document.getElementById('blindStatus');
     const weatherConditionEl = document.getElementById('weatherCondition');
+    const currentModeEl = document.getElementById('currentMode');
 
-    if (tempEl) tempEl.textContent = (data.temp || 0).toFixed(1);
-    if (humEl) humEl.textContent = (data.hum || 0).toFixed(1);
+    if (tempEl) tempEl.textContent = Number(data.temp || 0).toFixed(1);
+    if (humEl) humEl.textContent = Number(data.hum || 0).toFixed(1);
     if (rain1El) rain1El.textContent = data.rain1 || 0;
     if (rain2El) rain2El.textContent = data.rain2 || 0;
     
     if (blindStatusEl) blindStatusEl.textContent = data.blindStatus === 'closed' ? 'CLOSED' : 'OPEN';
     if (weatherConditionEl) weatherConditionEl.textContent = data.isRaining ? '🌧️' : '☀️';
+    if (data.mode && currentModeEl) currentModeEl.textContent = data.mode.toUpperCase();
     
     const now = new Date();
     isDaytime = now.getHours() >= 6 && now.getHours() < 18;
@@ -173,7 +257,31 @@ function updateDashboard(data) {
     
     const timestamp = new Date().toLocaleTimeString('id-ID');
     
-    // Ensure arrays exist
+    // Sync to Firebase Cloud if received from MQTT
+    if (syncToCloud && isFirebaseReady && db) {
+        db.ref('jemuran/status').set({
+            temp: Number(data.temp || 0),
+            hum: Number(data.hum || 0),
+            rain1: Number(data.rain1 || 0),
+            rain2: Number(data.rain2 || 0),
+            blindStatus: data.blindStatus || 'open',
+            isRaining: Boolean(data.isRaining),
+            mode: data.mode || currentMode,
+            lastUpdate: Date.now()
+        });
+
+        // Simpan titik riwayat
+        db.ref('jemuran/history').push({
+            time: timestamp,
+            temp: Number(data.temp || 0),
+            hum: Number(data.hum || 0),
+            rain1: Number(data.rain1 || 0),
+            rain2: Number(data.rain2 || 0),
+            blindStatus: data.blindStatus || 'open'
+        });
+    }
+
+    // Local Array Updates
     if (!sensorHistory.timestamps) sensorHistory.timestamps = [];
     if (!sensorHistory.temp) sensorHistory.temp = [];
     if (!sensorHistory.hum) sensorHistory.hum = [];
@@ -182,17 +290,17 @@ function updateDashboard(data) {
     if (!sensorHistory.blindStatus) sensorHistory.blindStatus = [];
     
     sensorHistory.timestamps.push(timestamp);
-    sensorHistory.temp.push(data.temp || 0);
-    sensorHistory.hum.push(data.hum || 0);
-    sensorHistory.rain1.push(data.rain1 || 0);
-    sensorHistory.rain2.push(data.rain2 || 0);
+    sensorHistory.temp.push(Number(data.temp || 0));
+    sensorHistory.hum.push(Number(data.hum || 0));
+    sensorHistory.rain1.push(Number(data.rain1 || 0));
+    sensorHistory.rain2.push(Number(data.rain2 || 0));
     sensorHistory.blindStatus.push(data.blindStatus === 'closed' ? 1 : 0);
     
     saveHistory();
     updateCharts();
     
-    todayStats.tempSum += (data.temp || 0);
-    todayStats.humSum += (data.hum || 0);
+    todayStats.tempSum += Number(data.temp || 0);
+    todayStats.humSum += Number(data.hum || 0);
     todayStats.tempCount++;
     todayStats.humCount++;
     
@@ -200,7 +308,7 @@ function updateDashboard(data) {
         todayStats.rainCount++;
         addLog('warning', 'Rain detected!');
     }
-    todayStats.lastRainState = data.isRaining || false;
+    todayStats.lastRainState = Boolean(data.isRaining);
     
     if (data.blindStatus === 'closed' && todayStats.lastBlindState === 'open') {
         todayStats.blindActiveCount++;
@@ -218,13 +326,15 @@ window.addEventListener('load', () => {
     if (clientIdEl) clientIdEl.value = clientId;
     loadSettings();
     
-    // Delay canvas init to ensure DOM is ready
     setTimeout(() => {
         initCanvas();
     }, 100);
     
     initCharts();
     addLog('info', 'Dashboard initialized');
+    
+    // Inisialisasi Firebase & MQTT
+    initFirebase();
     connectMQTT();
 });
 
@@ -255,20 +365,6 @@ function loadSettings() {
     if (savedStats.date === today) {
         todayStats = savedStats;
         updateStatsDisplay();
-    }
-    
-    const savedHistory = JSON.parse(localStorage.getItem('sensorHistory') || '{}');
-    if (savedHistory && savedHistory.timestamps && savedHistory.timestamps.length > 0) {
-        sensorHistory = savedHistory;
-        setTimeout(() => {
-            updateCharts();
-        }, 500);
-    }
-    
-    const savedLogs = JSON.parse(localStorage.getItem('activityLogs') || '[]');
-    if (savedLogs && savedLogs.length > 0) {
-        logs = savedLogs;
-        displayLogs();
     }
 }
 
@@ -617,26 +713,22 @@ function initCharts() {
 }
 
 function updateCharts() {
-    if (!tempHumChart || !rainChart || !blindChart) {
-        return;
-    }
+    if (!tempHumChart || !rainChart || !blindChart) return;
+    if (!sensorHistory || !sensorHistory.timestamps) return;
     
-    if (!sensorHistory || !sensorHistory.timestamps) {
-        return;
-    }
-    
-    tempHumChart.data.labels = sensorHistory.timestamps.slice(-20);
-    tempHumChart.data.datasets[0].data = sensorHistory.temp.slice(-20);
-    tempHumChart.data.datasets[1].data = sensorHistory.hum.slice(-20);
+    const sliceCount = -20;
+    tempHumChart.data.labels = sensorHistory.timestamps.slice(sliceCount);
+    tempHumChart.data.datasets[0].data = sensorHistory.temp.slice(sliceCount);
+    tempHumChart.data.datasets[1].data = sensorHistory.hum.slice(sliceCount);
     tempHumChart.update('none');
 
-    rainChart.data.labels = sensorHistory.timestamps.slice(-20);
-    rainChart.data.datasets[0].data = sensorHistory.rain1.slice(-20);
-    rainChart.data.datasets[1].data = sensorHistory.rain2.slice(-20);
+    rainChart.data.labels = sensorHistory.timestamps.slice(sliceCount);
+    rainChart.data.datasets[0].data = sensorHistory.rain1.slice(sliceCount);
+    rainChart.data.datasets[1].data = sensorHistory.rain2.slice(sliceCount);
     rainChart.update('none');
 
-    blindChart.data.labels = sensorHistory.timestamps.slice(-20);
-    blindChart.data.datasets[0].data = sensorHistory.blindStatus.slice(-20);
+    blindChart.data.labels = sensorHistory.timestamps.slice(sliceCount);
+    blindChart.data.datasets[0].data = sensorHistory.blindStatus.slice(sliceCount);
     blindChart.update('none');
 }
 
@@ -647,6 +739,11 @@ function addLog(type, message) {
     logs.push(log);
     saveLogs();
     displayLogs();
+
+    // Push log to Firebase Cloud
+    if (isFirebaseReady && db) {
+        db.ref('jemuran/logs').push(log);
+    }
 }
 
 function displayLogs() {
@@ -662,6 +759,9 @@ function clearLogs() {
         logs = [];
         saveLogs();
         displayLogs();
+        if (isFirebaseReady && db) {
+            db.ref('jemuran/logs').remove();
+        }
         addLog('info', 'Logs cleared');
     }
 }

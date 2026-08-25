@@ -9,6 +9,10 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     
+    <!-- Firebase Realtime Database SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    
     <!-- Custom Stylesheet -->
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -17,7 +21,7 @@
         <!-- Header Section -->
         <div class="header">
             <h1 id="dashboardTitle">🌤️ Smart Jemuran IoT</h1>
-            <p><span class="status-indicator offline" id="statusIndicator"></span><span id="connectionStatus">Connecting to MQTT...</span></p>
+            <p><span class="status-indicator offline" id="statusIndicator"></span><span id="connectionStatus">Connecting to Cloud & MQTT...</span></p>
         </div>
 
         <!-- Navigation Tabs -->
@@ -159,7 +163,7 @@
         <!-- Tab 3: Logs -->
         <div id="logs" class="tab-content">
             <div class="card">
-                <h2>📝 Activity Logs</h2>
+                <h2>📝 Activity Logs (Cloud Synced)</h2>
                 <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="btn btn-primary" onclick="clearLogs()">🗑️ Clear</button>
                     <button class="btn btn-success" onclick="exportLogs()">💾 Export</button>
@@ -176,16 +180,24 @@
                 <h2>⚙️ Pengaturan Sistem</h2>
                 
                 <div class="settings-section">
-                    <h3>🔌 Koneksi MQTT</h3>
+                    <h3>🔥 Firebase Cloud Database</h3>
+                    <div class="info-box success">
+                        <strong>Status Firebase:</strong> <span id="firebaseStatus" style="font-weight: bold; color: #4CAF50;">Connected (Real-time Cloud Sync)</span><br>
+                        <small>Database URL: jemuran-iot-56180-default-rtdb.asia-southeast1.firebasedatabase.app</small>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>🔌 Koneksi MQTT Broker</h3>
                     <div class="info-box">
-                        <strong>Info:</strong> Dashboard otomatis terhubung ke broker.hivemq.com<br>
+                        <strong>Info:</strong> Broker HiveMQ WebSocket (Port 8884)<br>
                         Status: <span id="mqttStatus" style="font-weight: bold;">Connecting...</span>
                     </div>
                     <div class="input-group">
                         <label>Client ID:</label>
                         <input type="text" id="clientId" readonly>
                     </div>
-                    <button class="btn btn-success" onclick="reconnectMQTT()">🔄 Reconnect</button>
+                    <button class="btn btn-success" onclick="reconnectMQTT()">🔄 Reconnect MQTT</button>
                 </div>
 
                 <div class="settings-section">

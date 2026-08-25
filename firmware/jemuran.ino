@@ -3,6 +3,7 @@
 #include <WebServer.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <HTTPClient.h>
 #include "DHTesp.h"
 #include "time.h"
 
@@ -11,6 +12,9 @@ const char* ssid = "NotYOURSv2";
 const char* password = "hahahahaha";
 const char* mqtt_server = "broker.hivemq.com";
 const int mqtt_port = 1883;
+
+// ==================== KONFIGURASI FIREBASE CLOUD ====================
+const char* firebase_host = "https://jemuran-iot-56180-default-rtdb.asia-southeast1.firebasedatabase.app/jemuran/status.json";
 
 // Konfigurasi NTP
 const char* ntpServer = "id.pool.ntp.org";
@@ -531,6 +535,7 @@ void loop() {
     doc["rain1"] = r1;
     doc["rain2"] = r2;
     doc["isRaining"] = isRaining;
+    doc["blindStatus"] = (motorCounter >= MAX_COUNTER / 2) ? "closed" : "open";
     doc["position"] = motorCounter;
     doc["maxPosition"] = MAX_COUNTER;
     doc["atTop"] = (motorCounter == 0);
@@ -540,6 +545,31 @@ void loop() {
 
     String output;
     serializeJson(doc, output);
+    
+    // 1. Publish to MQTT Broker
     client.publish(topic_status, output.c_str());
+    
+    // 2. Publish to Firebase Realtime Database
+    sendToFirebase(output);
   }
 }
+
+// ==================== FUNGSI KIRIM KE FIREBASE ====================
+void sendToFirebase(String jsonPayload) {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(firebase_host);
+    http.addHeader("Content-Type", "application/json");
+    int httpResponseCode = http.PUT(jsonPayload);
+    if (httpResponseCode > 0) {
+      Serial.print("Firebase updated [Code: ");
+      Serial.print(httpResponseCode);
+      Serial.println("]");
+    } else {
+      Serial.print("Firebase Error: ");
+      Serial.println(httpResponseCode);
+    }
+    http.end();
+  }
+}
+
