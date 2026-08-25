@@ -115,18 +115,19 @@ body {
 }
 
 .brand-logo-img {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    object-fit: cover;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    object-fit: contain;
+    background: transparent;
+    border: none;
     box-shadow: 0 4px 18px rgba(249, 115, 22, 0.35);
-    border: 1px solid rgba(255, 255, 255, 0.15);
     transition: var(--transition);
 }
 
 .brand-logo-img:hover {
-    transform: scale(1.05);
-    box-shadow: 0 6px 22px rgba(249, 115, 22, 0.5);
+    transform: scale(1.06);
+    box-shadow: 0 6px 24px rgba(249, 115, 22, 0.55);
 }
 
 .brand-text h2 {
