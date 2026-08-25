@@ -1169,6 +1169,55 @@ body {
     transform: translateY(-2px);
 }
 
+/* ==================== MOBILE BOTTOM NAVIGATION BAR ==================== */
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    background: rgba(11, 17, 30, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border-subtle);
+    z-index: 150;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 12px;
+}
+
+.mob-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+}
+
+.mob-nav-item .mob-nav-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.mob-nav-item:hover, .mob-nav-item.active {
+    color: #FFF;
+}
+
+.mob-nav-item.active {
+    color: var(--cyan);
+}
+.mob-nav-item.active .mob-nav-icon {
+    transform: translateY(-2px);
+    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.6));
+}
+
 /* ==================== RESPONSIVE MEDIA QUERIES ==================== */
 @media (max-width: 950px) {
     .sidebar {
@@ -1176,7 +1225,7 @@ body {
     }
     .sidebar.open {
         transform: translateX(0);
-        box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+        box-shadow: 0 0 50px rgba(0, 0, 0, 0.85);
     }
     .main-wrapper {
         margin-left: 0;
@@ -1188,19 +1237,96 @@ body {
         justify-content: center;
     }
     .topbar {
-        padding: 0 18px;
+        padding: 0 16px;
     }
     .content-body {
-        padding: 18px 14px;
+        padding: 16px 14px 85px 14px; /* extra bottom padding for mobile bottom bar */
     }
-    .hero-stage-card {
-        height: 650px;
+    .mobile-bottom-nav {
+        display: flex;
     }
-    .hero-middle-row {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .floating-dht-card, .floating-rain-card, .floating-wind-card {
-        min-width: 100%;
+    .bottom-actions-grid {
+        grid-template-columns: 1fr;
     }
 }
+
+@media (max-width: 768px) {
+    .hero-stage-card {
+        height: auto;
+        min-height: auto;
+        padding-bottom: 16px;
+        background: var(--bg-surface);
+    }
+
+    .hero-bg-layer, #weatherCanvas, .hero-vignette {
+        height: 250px;
+    }
+
+    .hero-floating-ui {
+        position: relative;
+        height: auto;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .hero-top-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        z-index: 10;
+    }
+
+    .floating-location-pill {
+        width: 100%;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        font-size: 0.76rem;
+        padding: 8px 12px;
+    }
+
+    .floating-condition-card {
+        max-width: 100%;
+        margin-top: 0;
+        z-index: 10;
+    }
+
+    .hero-middle-row {
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 10px;
+    }
+
+    .floating-dht-card, .floating-rain-card, .floating-wind-card {
+        min-width: 100%;
+        background: rgba(18, 25, 41, 0.9);
+    }
+
+    .floating-rain-card {
+        justify-content: space-around;
+    }
+
+    .chart-header-controls {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .chart-legend-toggles {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .master-chart-container {
+        height: 260px !important;
+    }
+
+    .header-title-box h1 {
+        font-size: 1rem;
+    }
+    .header-title-box p {
+        font-size: 0.68rem;
+    }
+}
+

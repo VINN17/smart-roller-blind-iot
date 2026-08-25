@@ -441,7 +441,27 @@
         </main>
     </div>
 
+    <!-- ==================== MOBILE BOTTOM NAVIGATION BAR ==================== -->
+    <nav class="mobile-bottom-nav">
+        <div class="mob-nav-item active" onclick="switchNavTab('overview')">
+            <span class="mob-nav-icon">📊</span>
+            <span>Overview</span>
+        </div>
+        <div class="mob-nav-item" onclick="switchNavTab('analytics')">
+            <span class="mob-nav-icon">📈</span>
+            <span>Analytics</span>
+        </div>
+        <div class="mob-nav-item" onclick="switchNavTab('control')">
+            <span class="mob-nav-icon">🎛️</span>
+            <span>Control</span>
+        </div>
+        <div class="mob-nav-item" onclick="switchNavTab('logs')">
+            <span class="mob-nav-icon">📝</span>
+            <span>Logs</span>
+        </div>
+    </nav>
+
     <!-- Application Script (with cache buster) -->
-    <script src="js/app.js?v=2.1"></script>
+    <script src="js/app.js?v=2.2"></script>
 </body>
 </html>

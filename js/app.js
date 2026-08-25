@@ -126,11 +126,19 @@ function toggleSidebar() {
 }
 
 function switchNavTab(tabId) {
-    document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => item.classList.remove('active'));
-    
-    if (window.event && window.event.currentTarget) {
-        window.event.currentTarget.classList.add('active');
-    }
+    // Desktop sidebar active sync
+    document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => {
+        item.classList.remove('active');
+        const text = item.textContent.toLowerCase();
+        if (text.includes(tabId)) item.classList.add('active');
+    });
+
+    // Mobile bottom nav active sync
+    document.querySelectorAll('.mobile-bottom-nav .mob-nav-item').forEach(item => {
+        item.classList.remove('active');
+        const text = item.textContent.toLowerCase();
+        if (text.includes(tabId)) item.classList.add('active');
+    });
 
     document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
     const targetPane = document.getElementById(`tab-${tabId}`);
