@@ -1,0 +1,19 @@
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Arduino / PlatformIO build files
+build/
+.pio/
+.vscode/
+*.hex
+*.bin
+*.elf
+
+# IDE & Editor Temporary Files
+*.swp
+*.swo
+*~
+.idea/
+.agent/
