@@ -3,9 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Jemuran IoT Dashboard</title>
+    <title>SmartJemur PRO - IoT Multi-Sensor Platform</title>
     
-    <!-- External Libraries -->
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js & MQTT.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     
@@ -17,226 +22,423 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <div class="container">
-        <!-- Header Section -->
-        <div class="header">
-            <h1 id="dashboardTitle">🌤️ Smart Jemuran IoT</h1>
-            <p><span class="status-indicator offline" id="statusIndicator"></span><span id="connectionStatus">Connecting to Cloud & MQTT...</span></p>
-        </div>
 
-        <!-- Navigation Tabs -->
-        <div class="tab-navigation">
-            <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
-            <button class="tab-btn" onclick="switchTab('history')">📈 History</button>
-            <button class="tab-btn" onclick="switchTab('logs')">📝 Logs</button>
-            <button class="tab-btn" onclick="switchTab('settings')">⚙️ Settings</button>
-        </div>
-
-        <!-- Tab 1: Dashboard -->
-        <div id="dashboard" class="tab-content active">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label">Deteksi Hujan Hari Ini</div>
-                    <div class="stat-value" id="rainCountToday">0</div>
-                    <div class="stat-label">kali</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Rata-rata Suhu</div>
-                    <div class="stat-value" id="avgTempToday">--</div>
-                    <div class="stat-label">°C</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Rata-rata Kelembaban</div>
-                    <div class="stat-value" id="avgHumToday">--</div>
-                    <div class="stat-label">%</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Blind Aktif</div>
-                    <div class="stat-value" id="blindActiveToday">0</div>
-                    <div class="stat-label">kali</div>
-                </div>
-            </div>
-
-            <div class="grid">
-                <div class="card">
-                    <h2>🌦️ Animasi Cuaca Real-time</h2>
-                    <div class="canvas-wrapper">
-                        <canvas id="weatherCanvas"></canvas>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h2>🌡️ Sensor Real-time</h2>
-                    <div class="sensor-grid">
-                        <div class="sensor-item">
-                            <div class="sensor-label">Suhu</div>
-                            <div class="sensor-value" id="temp">--</div>
-                            <div class="sensor-label">°C</div>
-                        </div>
-                        <div class="sensor-item">
-                            <div class="sensor-label">Kelembaban</div>
-                            <div class="sensor-value" id="hum">--</div>
-                            <div class="sensor-label">%</div>
-                        </div>
-                        <div class="sensor-item">
-                            <div class="sensor-label">Sensor Hujan 1</div>
-                            <div class="sensor-value" id="rain1">--</div>
-                            <div class="sensor-label">%</div>
-                        </div>
-                        <div class="sensor-item">
-                            <div class="sensor-label">Sensor Hujan 2</div>
-                            <div class="sensor-value" id="rain2">--</div>
-                            <div class="sensor-label">%</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>🎛️ Kontrol Roller Blind</h2>
-                <div class="control-section">
-                    <h3 style="color: #667eea; margin-bottom: 10px; font-size: clamp(1rem, 3vw, 1.2rem);">Mode Operasi</h3>
-                    <div class="mode-toggle">
-                        <button class="btn btn-primary active" id="btnAuto" onclick="setMode('auto')">🤖 AUTO</button>
-                        <button class="btn btn-warning" id="btnManual" onclick="setMode('manual')">✋ MANUAL</button>
-                    </div>
-                </div>
-
-                <div id="manualControls" style="display:none;">
-                    <h3 style="color: #667eea; margin-bottom: 10px; font-size: clamp(1rem, 3vw, 1.2rem);">Kontrol Manual</h3>
-                    <div class="manual-controls">
-                        <button class="btn btn-success" onclick="controlBlind('naik')">⬆️ NAIK</button>
-                        <button class="btn btn-danger" onclick="controlBlind('turun')">⬇️ TURUN</button>
-                        <button class="btn btn-warning" onclick="controlBlind('stop')">⏹️ STOP</button>
-                    </div>
-                </div>
-
-                <div id="autoInfo" class="info-box" style="margin-top: 15px;">
-                    <strong>Mode AUTO Aktif</strong><br>
-                    Sistem mengatur roller blind otomatis berdasarkan kondisi cuaca.
-                </div>
-
-                <div style="margin-top: 20px;">
-                    <h3 style="color: #667eea; margin-bottom: 10px; font-size: clamp(1rem, 3vw, 1.2rem);">Status Sistem</h3>
-                    <div class="sensor-grid">
-                        <div class="sensor-item">
-                            <div class="sensor-label">Mode</div>
-                            <div class="sensor-value" id="currentMode" style="font-size: clamp(1.2rem, 3vw, 1.5rem);">AUTO</div>
-                        </div>
-                        <div class="sensor-item">
-                            <div class="sensor-label">Blind Status</div>
-                            <div class="sensor-value" id="blindStatus" style="font-size: clamp(1.2rem, 3vw, 1.5rem);">STOP</div>
-                        </div>
-                        <div class="sensor-item">
-                            <div class="sensor-label">Weather</div>
-                            <div class="sensor-value" id="weatherCondition" style="font-size: clamp(1.2rem, 3vw, 1.5rem);">☀️</div>
-                        </div>
-                    </div>
-                </div>
+    <!-- ==================== SIDEBAR NAVIGATION ==================== -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="brand-icon">🌤️</div>
+            <div class="brand-text">
+                <h2>SmartJemur <span class="pro-badge">PRO</span></h2>
+                <p>IoT Multi-Sensor Platform</p>
             </div>
         </div>
 
-        <!-- Tab 2: History -->
-        <div id="history" class="tab-content">
-            <div class="card">
-                <h2>📈 Grafik Suhu & Kelembaban</h2>
-                <div class="chart-container">
-                    <canvas id="tempHumChart"></canvas>
-                </div>
+        <nav class="sidebar-nav">
+            <div class="nav-label">MAIN MENU</div>
+            <div class="nav-item active" onclick="switchNavTab('overview')">
+                <span class="nav-icon">📊</span>
+                <span>Overview</span>
             </div>
-
-            <div class="card">
-                <h2>🌧️ Grafik Sensor Hujan</h2>
-                <div class="chart-container">
-                    <canvas id="rainChart"></canvas>
-                </div>
+            <div class="nav-item" onclick="switchNavTab('analytics')">
+                <span class="nav-icon">📈</span>
+                <span>Master Analytics</span>
             </div>
+            <div class="nav-item" onclick="switchNavTab('control')">
+                <span class="nav-icon">🎛️</span>
+                <span>Motor Control</span>
+            </div>
+            
+            <div class="nav-label">SYSTEM</div>
+            <div class="nav-item" onclick="switchNavTab('logs')">
+                <span class="nav-icon">📝</span>
+                <span>Activity Logs</span>
+            </div>
+        </nav>
 
-            <div class="card">
-                <h2>📊 Aktivitas Blind</h2>
-                <div class="chart-container">
-                    <canvas id="blindChart"></canvas>
+        <div class="sidebar-footer">
+            <div class="cloud-status-card">
+                <div class="status-row">
+                    <span class="status-dot-pulse">
+                        <span class="dot" id="systemPulseDot"></span>
+                        <span id="systemCloudText">Cloud Synced</span>
+                    </span>
+                    <span style="color: var(--cyan); font-weight: 700;" id="currentModeSidebar">AUTO</span>
+                </div>
+                <div class="status-row" style="color: var(--text-muted);">
+                    <span>MQTT HiveMQ</span>
+                    <span id="mqttPortText">Port 8884</span>
                 </div>
             </div>
         </div>
+    </aside>
 
-        <!-- Tab 3: Logs -->
-        <div id="logs" class="tab-content">
-            <div class="card">
-                <h2>📝 Activity Logs (Cloud Synced)</h2>
-                <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button class="btn btn-primary" onclick="clearLogs()">🗑️ Clear</button>
-                    <button class="btn btn-success" onclick="exportLogs()">💾 Export</button>
-                </div>
-                <div class="log-container" id="logContainer">
-                    <div class="log-entry info">[INFO] Dashboard initialized</div>
+    <!-- ==================== MAIN CONTENT WRAPPER ==================== -->
+    <div class="main-wrapper">
+        
+        <!-- Sticky Topbar -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <button class="menu-toggle-btn" onclick="toggleSidebar()" aria-label="Toggle Menu">☰</button>
+                <div class="header-title-box">
+                    <h1 id="pageHeadingTitle">☀️ Dashboard Overview</h1>
+                    <p id="systemLiveClock">Selasa, 25 Agu 2026 • 19:03:44</p>
                 </div>
             </div>
-        </div>
 
-        <!-- Tab 4: Settings -->
-        <div id="settings" class="tab-content">
-            <div class="card">
-                <h2>⚙️ Pengaturan Sistem</h2>
+            <div class="topbar-right">
+                <div class="topbar-pill" id="weatherPill">
+                    <span id="weatherIcon">☀️</span>
+                    <span id="weatherText">Cerah (Optimal)</span>
+                </div>
+                <div class="topbar-pill" id="timeHeaderBadge">
+                    <span>💧</span>
+                    <span id="liveTimeShort">19:03:44</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Content Body Area -->
+        <main class="content-body">
+
+            <!-- ==================== TAB 1: OVERVIEW (HERO ROOFTOP SHOWCASE) ==================== -->
+            <section id="tab-overview" class="tab-pane active">
                 
-                <div class="settings-section">
-                    <h3>🔥 Firebase Cloud Database</h3>
-                    <div class="info-box success">
-                        <strong>Status Firebase:</strong> <span id="firebaseStatus" style="font-weight: bold; color: #4CAF50;">Connected (Real-time Cloud Sync)</span><br>
-                        <small>Database URL: jemuran-iot-56180-default-rtdb.asia-southeast1.firebasedatabase.app</small>
+                <!-- CINEMATIC HERO STAGE -->
+                <div class="hero-stage-card">
+                    <!-- Background Layers (Smooth Crossfade) -->
+                    <div class="hero-bg-layer night" id="bgNight"></div>
+                    <div class="hero-bg-layer day" id="bgDay"></div>
+                    <div class="hero-bg-layer rain" id="bgRain"></div>
+                    
+                    <!-- Live Canvas (Wind swirl & flying leaves & raindrops) -->
+                    <canvas id="weatherCanvas"></canvas>
+                    <div class="hero-vignette"></div>
+
+                    <!-- Floating Glass HUD on Hero -->
+                    <div class="hero-floating-ui">
+                        
+                        <!-- Top Floating Location Pill -->
+                        <div class="hero-top-row">
+                            <div class="floating-location-pill">
+                                <span>📍 Lokasi:</span>
+                                <select class="location-dropdown-select" id="citySelect" onchange="onLocationChange()">
+                                    <option value="auto">Lokasi Saya (Auto GPS/IP)</option>
+                                    <option value="jakarta">Jakarta (WIB)</option>
+                                    <option value="bandung">Bandung (WIB)</option>
+                                    <option value="surabaya">Surabaya (WIB)</option>
+                                    <option value="yogyakarta">Yogyakarta (WIB)</option>
+                                    <option value="semarang">Semarang (WIB)</option>
+                                    <option value="medan">Medan (WIB)</option>
+                                    <option value="makassar">Makassar (WITA)</option>
+                                    <option value="denpasar">Bali / Denpasar (WITA)</option>
+                                    <option value="jayapura">Jayapura (WIT)</option>
+                                </select>
+                                <div class="floating-weather-tag" id="heroLiveWeatherTag">
+                                    <span id="heroTempTag">🌡️ 29.1°C</span>
+                                    <span id="heroHumTag">💧 67%</span>
+                                    <span id="heroConditionTag">☀️ Cerah</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Top-Left Floating Condition Card -->
+                        <div class="floating-condition-card">
+                            <div class="condition-icon-glow" id="conditionIconGlow">☀️</div>
+                            <div class="condition-text-box">
+                                <span>Kondisi Saat ini</span>
+                                <h3 id="conditionHeroTitle">Cerah (Optimal)</h3>
+                                <p id="conditionHeroSub">Cocok untuk menjemur pakaian</p>
+                            </div>
+                        </div>
+
+                        <!-- Middle / Bottom Floating Telemetry Cards -->
+                        <div class="hero-middle-row">
+                            
+                            <!-- Left: DHT22 Suhu & Kelembaban -->
+                            <div class="floating-dht-card">
+                                <div class="dht-metric-item">
+                                    <div class="dht-icon-badge" style="color: #F43F5E;">🌡️</div>
+                                    <div class="dht-info-box">
+                                        <span class="dht-label">Suhu Udara (DHT22)</span>
+                                        <div class="dht-value-box">
+                                            <span class="dht-value" id="valTemp">26.1<span style="font-size: 1rem; font-weight: 500; color: var(--text-muted);">°C</span></span>
+                                            <!-- Mini SVG Sparkline -->
+                                            <svg class="mini-sparkline" viewBox="0 0 60 20">
+                                                <path d="M 0 15 Q 15 5 30 12 T 60 8" fill="none" stroke="#F43F5E" stroke-width="2" stroke-linecap="round"/>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="dht-metric-item">
+                                    <div class="dht-icon-badge" style="color: #0EA5E9;">💧</div>
+                                    <div class="dht-info-box">
+                                        <span class="dht-label">Kelembaban (DHT22)</span>
+                                        <div class="dht-value-box">
+                                            <span class="dht-value" id="valHum">76<span style="font-size: 1rem; font-weight: 500; color: var(--text-muted);">%</span></span>
+                                            <!-- Mini SVG Sparkline -->
+                                            <svg class="mini-sparkline" viewBox="0 0 60 20">
+                                                <path d="M 0 8 Q 15 16 30 6 T 60 14" fill="none" stroke="#0EA5E9" stroke-width="2" stroke-linecap="round"/>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Center-Bottom: Dual Rain Sensors -->
+                            <div class="floating-rain-card">
+                                <div class="rain-sub-metric">
+                                    <div class="rain-icon-box" style="color: #8B5CF6;">🌧️</div>
+                                    <div class="rain-data">
+                                        <h4>Sensor Hujan 1</h4>
+                                        <div class="rain-val" id="valRain1">0%</div>
+                                        <span class="rain-status-text" id="statusRain1Text">Tidak ada hujan</span>
+                                    </div>
+                                </div>
+
+                                <div style="width: 1px; height: 35px; background: rgba(255,255,255,0.1);"></div>
+
+                                <div class="rain-sub-metric">
+                                    <div class="rain-icon-box" style="color: #10B981;">🛡️</div>
+                                    <div class="rain-data">
+                                        <h4>Sensor Hujan 2</h4>
+                                        <div class="rain-val" id="valRain2">0%</div>
+                                        <span class="rain-status-text" id="statusRain2Text">Aman</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right: Anemometre Wind Speed -->
+                            <div class="floating-wind-card">
+                                <div class="wind-header">
+                                    <span>💨 Angin (Anemometre)</span>
+                                </div>
+                                <div class="wind-speed-val" id="valWind">18 <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">km/h</span></div>
+                                <div class="wind-led-bar">
+                                    <span class="led-seg g"></span>
+                                    <span class="led-seg g"></span>
+                                    <span class="led-seg g"></span>
+                                    <span class="led-seg y"></span>
+                                    <span class="led-seg y"></span>
+                                    <span class="led-seg r"></span>
+                                    <span class="led-seg"></span>
+                                    <span class="led-seg"></span>
+                                </div>
+                                <div class="wind-status-tag" id="windStatusText">Kencang</div>
+                            </div>
+
+                        </div>
+
                     </div>
                 </div>
 
-                <div class="settings-section">
-                    <h3>🔌 Koneksi MQTT Broker</h3>
-                    <div class="info-box">
-                        <strong>Info:</strong> Broker HiveMQ WebSocket (Port 8884)<br>
-                        Status: <span id="mqttStatus" style="font-weight: bold;">Connecting...</span>
-                    </div>
-                    <div class="input-group">
-                        <label>Client ID:</label>
-                        <input type="text" id="clientId" readonly>
-                    </div>
-                    <button class="btn btn-success" onclick="reconnectMQTT()">🔄 Reconnect MQTT</button>
-                </div>
-
-                <div class="settings-section">
-                    <h3>🎨 Personalisasi</h3>
-                    <div class="input-group">
-                        <label>Nama Dashboard:</label>
-                        <input type="text" id="dashboardName" placeholder="Smart Jemuran IoT">
-                    </div>
-                    <button class="btn btn-primary" onclick="saveName()">💾 Simpan Nama</button>
-
-                    <div style="margin-top: 20px;">
-                        <label style="display: block; margin-bottom: 10px; font-weight: 500;">Pilih Tema:</label>
-                        <div class="theme-selector">
-                            <div class="theme-option selected" onclick="setTheme('purple')" style="background: linear-gradient(135deg, #667eea, #764ba2);">
-                                <span style="color: white;">Purple</span>
+                <!-- BOTTOM 3-COLUMN ACTION & INTELLIGENCE CARDS -->
+                <div class="bottom-actions-grid">
+                    
+                    <!-- Card 1: Analisis Multi-Sensor (Sensor Fusion) -->
+                    <div class="action-card">
+                        <div class="action-card-header">
+                            <span style="font-size: 1.1rem; color: #EC4899;">🧠</span>
+                            <h3>Analisis Multi-Sensor (Sensor Fusion)</h3>
+                        </div>
+                        <div class="fusion-body">
+                            <div class="fusion-text-side">
+                                <div class="fusion-badge-title" id="fusionBadgeTitle">Optimal untuk Menjemur</div>
+                                <p class="fusion-desc" id="fusionDescText">Semua parameter lingkungan ideal untuk menjemur pakaian. Kombinasi suhu, kelembaban, angin, dan kondisi kering sangat baik.</p>
                             </div>
-                            <div class="theme-option" onclick="setTheme('blue')" style="background: linear-gradient(135deg, #2196F3, #1976D2);">
-                                <span style="color: white;">Blue</span>
-                            </div>
-                            <div class="theme-option" onclick="setTheme('green')" style="background: linear-gradient(135deg, #4CAF50, #2E7D32);">
-                                <span style="color: white;">Green</span>
-                            </div>
-                            <div class="theme-option" onclick="setTheme('orange')" style="background: linear-gradient(135deg, #ff9800, #f57c00);">
-                                <span style="color: white;">Orange</span>
+                            <!-- Circular SVG Gauge -->
+                            <div class="circular-gauge-container">
+                                <svg class="gauge-svg" viewBox="0 0 68 68">
+                                    <circle class="gauge-bg" cx="34" cy="34" r="30"/>
+                                    <circle class="gauge-prog" id="fusionGaugeProg" cx="34" cy="34" r="30"/>
+                                </svg>
                             </div>
                         </div>
                     </div>
+
+                    <!-- Card 2: Rekomendasi Jemur -->
+                    <div class="action-card">
+                        <div class="action-card-header">
+                            <span style="font-size: 1.1rem; color: var(--emerald);">👍</span>
+                            <h3>Rekomendasi Jemur</h3>
+                        </div>
+                        <div class="checklist-container">
+                            <div class="check-item">
+                                <span class="check-icon">✓</span>
+                                <span id="recCheck1">Kondisi cuaca sangat baik</span>
+                            </div>
+                            <div class="check-item">
+                                <span class="check-icon">✓</span>
+                                <span id="recCheck2">Angin kencang membantu pengeringan lebih cepat</span>
+                            </div>
+                            <div class="check-item">
+                                <span class="check-icon">✓</span>
+                                <span id="recCheck3">Tidak ada potensi hujan</span>
+                            </div>
+                        </div>
+                        <button class="btn-recommend" id="btnRecommendAction" onclick="controlBlind('naik')">Lanjutkan Menjemur</button>
+                    </div>
+
+                    <!-- Card 3: Quick Control -->
+                    <div class="action-card">
+                        <div class="action-card-header">
+                            <span style="font-size: 1.1rem; color: var(--amber);">⚡</span>
+                            <h3>Quick Control</h3>
+                        </div>
+                        <div class="quick-ctrl-btn-group">
+                            <button class="btn-quick-act open" onclick="controlBlind('naik')">
+                                <span>⬆️</span>
+                                <span>Buka Jemuran</span>
+                            </button>
+                            <button class="btn-quick-act close" onclick="controlBlind('turun')">
+                                <span>⬇️</span>
+                                <span>Tutup Jemuran</span>
+                            </button>
+                        </div>
+                        <div class="actuator-progress-wrapper">
+                            <div class="actuator-status-labels">
+                                <span>Status Jemuran</span>
+                                <span class="act-stat-text" id="actuatorStatusLabel">Terbuka Penuh</span>
+                                <span id="actuatorPercentLabel">100%</span>
+                            </div>
+                            <div class="act-prog-bar-track">
+                                <div class="act-prog-bar-fill" id="actuatorBarFill"></div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
-                <div class="settings-section">
-                    <h3>💾 Data Management</h3>
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                        <button class="btn btn-success" onclick="exportData()">📥 Export Data</button>
-                        <button class="btn btn-warning" onclick="resetStats()">🔄 Reset Statistik</button>
-                        <button class="btn btn-danger" onclick="clearAllData()">🗑️ Hapus Semua</button>
+            </section>
+
+            <!-- ==================== TAB 2: MASTER ANALYTICS (2 GRAFIK TERPISAH) ==================== -->
+            <section id="tab-analytics" class="tab-pane">
+                
+                <!-- GRAFIK 1: SUHU & KELEMBABAN UDARA (DHT22) -->
+                <div class="unified-chart-card">
+                    <div class="chart-header-controls">
+                        <div>
+                            <h2 class="card-title" style="margin-bottom: 4px;">🌡️ Telemetri Atmosfer: Suhu & Kelembaban (DHT22)</h2>
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">Grafik khusus memantau fluktuasi termal (°C) dan kelembaban relatif atmosfer (%)</p>
+                        </div>
+
+                        <div class="chart-legend-toggles">
+                            <div class="legend-toggle-pill active temp" onclick="toggleDHTDataset(0)">
+                                <span class="legend-color-dot" style="background: #F43F5E;"></span>
+                                <span>Suhu (°C)</span>
+                            </div>
+                            <div class="legend-toggle-pill active hum" onclick="toggleDHTDataset(1)">
+                                <span class="legend-color-dot" style="background: #0EA5E9;"></span>
+                                <span>Kelembaban (%)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="master-chart-container" style="height: 320px;">
+                        <canvas id="dhtTelemetryChart"></canvas>
                     </div>
                 </div>
-            </div>
-        </div>
+
+                <!-- GRAFIK 2: DUAL SENSOR HUJAN (SENSOR HUJAN 1 & 2) -->
+                <div class="unified-chart-card">
+                    <div class="chart-header-controls">
+                        <div>
+                            <h2 class="card-title" style="margin-bottom: 4px;">🌧️ Deteksi Presipitasi: Sensor Hujan 1 & Sensor Hujan 2</h2>
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">Grafik khusus memantau kontak fisik tetesan air pada plat deteksi primer & redundansi (0 - 100%)</p>
+                        </div>
+
+                        <div class="chart-legend-toggles">
+                            <div class="legend-toggle-pill active rain1" onclick="toggleRainDataset(0)">
+                                <span class="legend-color-dot" style="background: #8B5CF6;"></span>
+                                <span>Sensor Hujan 1 (%)</span>
+                            </div>
+                            <div class="legend-toggle-pill active rain2" onclick="toggleRainDataset(1)">
+                                <span class="legend-color-dot" style="background: #10B981;"></span>
+                                <span>Sensor Hujan 2 (%)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="master-chart-container" style="height: 320px;">
+                        <canvas id="rainTelemetryChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 12px; color: #FFF;">💡 Panduan Pembacaan Grafik Terpisah</h3>
+                    <ul style="color: var(--text-secondary); font-size: 0.85rem; padding-left: 20px; line-height: 1.6;">
+                        <li><strong>Grafik Suhu & Kelembaban:</strong> Memiliki 2 sumbu Y independen sehingga kurva Suhu (°C) dan Kelembaban (RH %) terbaca dengan proporsional tanpa saling menumpuk.</li>
+                        <li><strong>Grafik Sensor Hujan:</strong> Menampilkan pembacaan analog dari kedua plat sensor hujan. Nilai 0% berarti plat kering total, dan nilai di atas 30% memicu otomatisasi tirai penutup jemuran.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 3: MOTOR CONTROL ==================== -->
+            <section id="tab-control" class="tab-pane">
+                <div class="card" style="max-width: 680px; margin: 0 auto;">
+                    <div class="card-header-flex">
+                        <h2 class="card-title">🎛️ Pusat Kontrol Roller Blind</h2>
+                        <span class="pro-badge">Actuator Manager</span>
+                    </div>
+
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px;">
+                        Pilih mode operasional sistem. Pada mode <strong>MANUAL</strong>, kamu memiliki kendali penuh untuk menaikkan atau menurunkan tirai jemuran melalui tombol di bawah ini.
+                    </p>
+
+                    <div class="mode-segmented-control">
+                        <button class="mode-btn active" id="btnModeAuto" onclick="setMode('auto')">🤖 AUTO MODE</button>
+                        <button class="mode-btn" id="btnModeManual" onclick="setMode('manual')">✋ MANUAL MODE</button>
+                    </div>
+
+                    <div class="motor-actions-grid" style="margin-top: 24px;">
+                        <button class="btn-motor up" onclick="controlBlind('naik')">
+                            <span class="btn-icon">⬆️</span>
+                            <span style="font-size: 1rem;">NAIK (Buka)</span>
+                        </button>
+                        <button class="btn-motor stop" onclick="controlBlind('stop')">
+                            <span class="btn-icon">⏹️</span>
+                            <span style="font-size: 1rem;">STOP</span>
+                        </button>
+                        <button class="btn-motor down" onclick="controlBlind('turun')">
+                            <span class="btn-icon">⬇️</span>
+                            <span style="font-size: 1rem;">TURUN (Tutup)</span>
+                        </button>
+                    </div>
+
+                    <div class="system-state-box" style="margin-top: 24px;">
+                        <div class="state-item">
+                            <span>Status Motor</span>
+                            <span id="motorStatusDisplay" style="color: var(--amber);">STANDBY</span>
+                        </div>
+                        <div class="state-item">
+                            <span>Mode Aktif</span>
+                            <span id="currentModeDisplay" style="color: var(--cyan);">AUTO</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 4: LOGS ==================== -->
+            <section id="tab-logs" class="tab-pane">
+                <div class="card">
+                    <div class="card-header-flex">
+                        <h2 class="card-title">📝 Activity & Telemetry Logs</h2>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn-primary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="clearLogs()">Clear Logs</button>
+                            <button class="btn-primary" style="padding: 6px 14px; font-size: 0.8rem; background: var(--bg-card);" onclick="exportLogs()">Export JSON</button>
+                        </div>
+                    </div>
+
+                    <div class="log-terminal" id="logTerminal">
+                        <div class="log-row info">
+                            <span class="log-timestamp">[INIT]</span>
+                            <span>Smart Roller Blind PRO System initialized</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
     </div>
 
     <!-- Application Script -->
