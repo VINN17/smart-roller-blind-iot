@@ -34,7 +34,6 @@ const int MOTOR_IN2 = 14;
 const int MOTOR_EN = 5;
 const int DHT_PIN = 26;
 const int LIMIT_SWITCH_ATAS = 22;
-const int LIMIT_SWITCH_BAWAH = 23;
 
 DHTesp dhtSensor;
 
@@ -266,7 +265,7 @@ void setMotorDrive(int in1, int in2, int speed, MotorCommand newDir) {
 
 // ==================== FUNGSI KONTROL MOTOR ====================
 void processMotorControl() {
-  // 1. Cek limit switch fisik atas (Pin 22)
+  // 1. Cek limit switch fisik atas (Pin 22) - Kalibrasi Posisi 0
   bool isTopSwitchHit = (digitalRead(LIMIT_SWITCH_ATAS) == 0);
   if (isTopSwitchHit) {
     if (motorCounter != 0) {
@@ -275,18 +274,9 @@ void processMotorControl() {
     }
   }
 
-  // 2. Cek limit switch fisik bawah (Pin 23)
-  bool isBottomSwitchHit = (digitalRead(LIMIT_SWITCH_BAWAH) == 0);
-  if (isBottomSwitchHit) {
-    if (motorCounter != MAX_COUNTER) {
-      motorCounter = MAX_COUNTER;
-      Serial.println("Koreksi Posisi: Counter diset ke MAX_COUNTER (Limit Bawah Tercapai)");
-    }
-  }
-
   MotorCommand activeCommand = (currentMode == AUTO) ? targetCommand : motorCommand;
 
-  // 3. Mode AUTO: cek apakah sudah mencapai posisi target
+  // 2. Mode AUTO: cek apakah sudah mencapai posisi target
   if (currentMode == AUTO) {
     // Target NAIK dan sudah di atas
     if (activeCommand == CMD_NAIK && (isTopSwitchHit || motorCounter == 0)) {
@@ -299,18 +289,18 @@ void processMotorControl() {
       return;
     }
     
-    // Target TURUN dan sudah di bawah
-    if (activeCommand == CMD_TURUN && (isBottomSwitchHit || motorCounter >= MAX_COUNTER)) {
+    // Target TURUN dan sudah di bawah (berdasarkan tuning timer MAX_COUNTER)
+    if (activeCommand == CMD_TURUN && motorCounter >= MAX_COUNTER) {
       if (!motorLocked) {
         stopMotorImmediate();
         motorLocked = true;
-        Serial.println("AUTO: Posisi BAWAH tercapai - Motor STOP & LOCKED");
+        Serial.println("AUTO: Posisi BAWAH tercapai (MAX_COUNTER) - Motor STOP & LOCKED");
       }
       return;
     }
   }
 
-  // 4. Eksekusi NAIK
+  // 3. Eksekusi NAIK
   if (activeCommand == CMD_NAIK) {
     if (!isTopSwitchHit) {
       setMotorDrive(HIGH, LOW, 255, CMD_NAIK);
@@ -327,10 +317,10 @@ void processMotorControl() {
       }
     }
   }
-  // 5. Eksekusi TURUN
+  // 4. Eksekusi TURUN (berhenti saat mencapai tuning MAX_COUNTER)
   else if (activeCommand == CMD_TURUN) {
     flag_m = 0;
-    if (!isBottomSwitchHit && motorCounter < MAX_COUNTER) {
+    if (motorCounter < MAX_COUNTER) {
       setMotorDrive(LOW, HIGH, 255, CMD_TURUN);
       motorCounter++;
     } else {
@@ -338,11 +328,11 @@ void processMotorControl() {
       motorCounter = MAX_COUNTER;
       if (!motorLocked) {
         motorLocked = true;
-        Serial.println("Batas BAWAH tercapai - Motor STOP & LOCKED");
+        Serial.println("Batas BAWAH tercapai (MAX_COUNTER) - Motor STOP & LOCKED");
       }
     }
   }
-  // 6. Eksekusi STOP
+  // 5. Eksekusi STOP
   else {
     stopMotorImmediate();
     if (currentMode == MANUAL && !motorLocked) {
@@ -456,7 +446,6 @@ void setup() {
   pinMode(MOTOR_IN2, OUTPUT);
   pinMode(MOTOR_EN, OUTPUT);
   pinMode(LIMIT_SWITCH_ATAS, INPUT_PULLUP);
-  pinMode(LIMIT_SWITCH_BAWAH, INPUT_PULLUP);
 
   // Stop motor saat startup
   digitalWrite(MOTOR_IN1, LOW);
