@@ -837,13 +837,13 @@ function exportSensorExcel() {
       .title-banner { background-color: #0F172A; color: #38BDF8; font-size: 13pt; font-weight: bold; text-align: center; padding: 10px; border: 1px solid #0F172A; }
       .meta-info { background-color: #F1F5F9; color: #475569; font-size: 9pt; text-align: center; padding: 6px; border: 1px solid #CBD5E1; }
       th { font-size: 10pt; font-weight: bold; text-align: center; padding: 8px 12px; border: 1px solid #000000; vertical-align: middle; }
-      td { font-size: 9.5pt; padding: 6px 10px; border: 1px solid #94A3B8; text-align: center; vertical-align: middle; }
-      .text-cell { mso-number-format:"\\@"; }
-      .num-cell { text-align: right; mso-number-format:"0\\.0"; }
+      .text-cell { mso-number-format:"\\@"; text-align: center; }
+      .num-temp { text-align: right; mso-number-format:"0\\.0"; }
+      .num-fz { text-align: right; mso-number-format:"0\\.000"; }
       .num-int { text-align: right; mso-number-format:"0"; }
       .row-alt { background-color: #F8FAFC; }
-      .status-open { color: #047857; font-weight: bold; background-color: #ECFDF5; }
-      .status-closed { color: #BE123C; font-weight: bold; background-color: #FFF1F2; }
+      .status-open { color: #047857; font-weight: bold; background-color: #ECFDF5; text-align: center; }
+      .status-closed { color: #BE123C; font-weight: bold; background-color: #FFF1F2; text-align: center; }
     </style>
     </head>
     <body>
@@ -873,21 +873,22 @@ function exportSensorExcel() {
 
     dataToExport.forEach((row, idx) => {
         const isAlt = idx % 2 === 1 ? ' class="row-alt"' : '';
-        const fz = row.fuzzyScore !== null ? Number(row.fuzzyScore).toFixed(3) : "-";
+        const tempVal = Number(row.temp).toFixed(1);
+        const fzVal = row.fuzzyScore !== null && row.fuzzyScore !== undefined ? Number(row.fuzzyScore).toFixed(3) : null;
         const isClosed = row.blindStatus === 'closed';
         const statusClass = isClosed ? 'status-closed' : 'status-open';
         const statusText = isClosed ? 'Tutup' : 'Buka';
 
         tableHtml += `
           <tr${isAlt}>
-            <td class="text-cell">${idx + 1}</td>
+            <td class="num-int" x:num="${idx + 1}">${idx + 1}</td>
             <td class="text-cell">${row.date}</td>
             <td class="text-cell">${row.time}</td>
-            <td class="num-cell">${Number(row.temp).toFixed(1)}</td>
-            <td class="num-int">${row.hum}</td>
-            <td class="num-int">${row.rain1}</td>
-            <td class="num-int">${row.rain2}</td>
-            <td class="num-cell">${fz}</td>
+            <td class="num-temp" x:num="${tempVal}">${tempVal}</td>
+            <td class="num-int" x:num="${row.hum}">${row.hum}</td>
+            <td class="num-int" x:num="${row.rain1}">${row.rain1}</td>
+            <td class="num-int" x:num="${row.rain2}">${row.rain2}</td>
+            ${fzVal !== null ? `<td class="num-fz" x:num="${fzVal}">${fzVal}</td>` : `<td class="text-cell">-</td>`}
             <td class="${statusClass}">${statusText}</td>
           </tr>
         `;
