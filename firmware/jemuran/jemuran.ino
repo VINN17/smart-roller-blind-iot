@@ -54,6 +54,7 @@ float fuzzyScore = 0.0; // Skor defuzzifikasi Z Sugeno (0.0 - 1.0)
 int motorCounter = 0;          // Counter posisi motor saat ini
 const int MAX_COUNTER = 16900; // Batas bawah (posisi turun penuh)
 bool flag_m = 0;               // Flag untuk kontrol motor
+bool isCalibratingHoming = false; // Flag proses kalibrasi homing saat pindah ke AUTO
 
 // Status sistem
 enum Mode { AUTO, MANUAL };
@@ -209,11 +210,20 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       currentMode = AUTO;
       motorLocked = false;
       flag_m = 0;
-      targetCommand = CMD_STOP;
       stopMotorImmediate();
-      Serial.println("MODE SWITCH [MQTT]: Berubah ke AUTO - Evaluasi target cuaca");
+      if (digitalRead(LIMIT_SWITCH_ATAS) != 0) {
+        isCalibratingHoming = true;
+        targetCommand = CMD_NAIK;
+        Serial.println("MODE SWITCH [MQTT]: AUTO -> Mulai KALIBRASI (Naik ke Limit Switch Atas)");
+      } else {
+        motorCounter = 0;
+        isCalibratingHoming = false;
+        targetCommand = CMD_STOP;
+        Serial.println("MODE SWITCH [MQTT]: AUTO -> Sudah di Limit Atas (Kalibrasi OK)");
+      }
     } else if (message == "manual") {
       currentMode = MANUAL;
+      isCalibratingHoming = false;
       motorLocked = false;
       motorCommand = CMD_STOP;
       stopMotorImmediate();
@@ -272,12 +282,36 @@ void processMotorControl() {
       motorCounter = 0;
       Serial.println("Koreksi Posisi: Counter direset ke 0 (Limit Atas Tercapai)");
     }
+
+    // Jika sedang dalam fase kalibrasi homing, selesaikan kalibrasi
+    if (isCalibratingHoming) {
+      isCalibratingHoming = false;
+      stopMotorImmediate();
+      flag_m = 1;
+      Serial.println("KALIBRASI SELESAI: Posisi 0 berhasil dikalibrasi!");
+
+      // Evaluasi status cuaca pasca kalibrasi:
+      float r_score = (r1 + r2) / 2.0;
+      float fz = hitungFuzzySugeno(r_score, hum, temp, jam);
+      if (fz >= 0.5) {
+        // Status cuaca adalah TURUN (hujan / malam) -> lanjutkan status turun dari titik kalibrasi!
+        targetCommand = CMD_TURUN;
+        motorLocked = false;
+        Serial.println("Pasca Kalibrasi: Status HUJAN/MALAM -> Melanjutkan TURUN dari posisi kalibrasi");
+      } else {
+        // Status cuaca adalah NAIK (cerah siang hari) -> tetap di situ (posisi atas)
+        targetCommand = CMD_NAIK;
+        motorLocked = true;
+        Serial.println("Pasca Kalibrasi: Status CERAH -> Tetap di posisi ATAS (Buka)");
+      }
+      return;
+    }
   }
 
   MotorCommand activeCommand = (currentMode == AUTO) ? targetCommand : motorCommand;
 
-  // 2. Mode AUTO: cek apakah sudah mencapai posisi target
-  if (currentMode == AUTO) {
+  // 2. Mode AUTO: cek apakah sudah mencapai posisi target (di luar fase kalibrasi)
+  if (currentMode == AUTO && !isCalibratingHoming) {
     // Target NAIK dan sudah di atas
     if (activeCommand == CMD_NAIK && (isTopSwitchHit || motorCounter == 0)) {
       if (!motorLocked) {
@@ -404,11 +438,21 @@ void handleSetMode() {
     currentMode = AUTO;
     motorLocked = false;
     flag_m = 0;
-    targetCommand = CMD_STOP;
     stopMotorImmediate();
-    server.send(200, "application/json", "{\"status\":\"ok\",\"mode\":\"auto\"}");
+    if (digitalRead(LIMIT_SWITCH_ATAS) != 0) {
+      isCalibratingHoming = true;
+      targetCommand = CMD_NAIK;
+      Serial.println("MODE SWITCH [WEB]: AUTO -> Mulai KALIBRASI NAIK");
+    } else {
+      motorCounter = 0;
+      isCalibratingHoming = false;
+      targetCommand = CMD_STOP;
+      Serial.println("MODE SWITCH [WEB]: AUTO -> Sudah di Limit Atas");
+    }
+    server.send(200, "application/json", "{\"status\":\"ok\",\"mode\":\"auto\",\"calibration\":true}");
   } else if (mode == "manual") {
     currentMode = MANUAL;
+    isCalibratingHoming = false;
     motorLocked = false;
     motorCommand = CMD_STOP;
     stopMotorImmediate();
@@ -451,6 +495,18 @@ void setup() {
   digitalWrite(MOTOR_IN1, LOW);
   digitalWrite(MOTOR_IN2, LOW);
   analogWrite(MOTOR_EN, 0);
+
+  // Jika saat startup posisi belum di switch atas, aktifkan kalibrasi homing
+  if (digitalRead(LIMIT_SWITCH_ATAS) != 0) {
+    isCalibratingHoming = true;
+    targetCommand = CMD_NAIK;
+    Serial.println("STARTUP: Memulai Kalibrasi Posisi Nol (Naik ke Switch Atas)...");
+  } else {
+    motorCounter = 0;
+    isCalibratingHoming = false;
+    targetCommand = CMD_STOP;
+    Serial.println("STARTUP: Sudah di Limit Atas (Kalibrasi OK)");
+  }
 
   dhtSensor.setup(DHT_PIN, DHTesp::DHT22);
 
@@ -558,15 +614,20 @@ void loop() {
         newTargetCommand = CMD_NAIK;  // Buka tirai jemuran
       }
 
-      // Cek apakah target berubah
-      if (newTargetCommand != targetCommand) {
-        Serial.print("Target berubah dari ");
-        Serial.print(targetCommand == CMD_NAIK ? "NAIK" : (targetCommand == CMD_TURUN ? "TURUN" : "STOP"));
-        Serial.print(" ke ");
-        Serial.println(newTargetCommand == CMD_NAIK ? "NAIK" : "TURUN");
-        
-        targetCommand = newTargetCommand;
-        motorLocked = false;
+      // Jika sedang proses kalibrasi homing naik, pertahankan targetCommand = CMD_NAIK
+      if (isCalibratingHoming) {
+        targetCommand = CMD_NAIK;
+      } else {
+        // Cek apakah target berubah di mode normal AUTO
+        if (newTargetCommand != targetCommand) {
+          Serial.print("Target berubah dari ");
+          Serial.print(targetCommand == CMD_NAIK ? "NAIK" : (targetCommand == CMD_TURUN ? "TURUN" : "STOP"));
+          Serial.print(" ke ");
+          Serial.println(newTargetCommand == CMD_NAIK ? "NAIK" : "TURUN");
+          
+          targetCommand = newTargetCommand;
+          motorLocked = false;
+        }
       }
 
       // Debug Serial Skripsi: Output variabel fuzzy lengkap
