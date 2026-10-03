@@ -356,6 +356,11 @@ function updateDashboard(data, syncToCloud = false) {
     const isClosed = data.blindStatus === 'closed' || blindPositionPercent === 0;
     const mode = (data.mode || currentMode).toLowerCase();
 
+    // Sinkronisasi Mode UI ke seluruh user jika ada update dari hardware / cloud
+    if (data.mode) {
+        applyModeUI(data.mode);
+    }
+
     // 1. Suhu & Kelembaban (DHT22)
     const valTemp = document.getElementById('valTemp');
     const valHum = document.getElementById('valHum');
@@ -1141,6 +1146,13 @@ function initFirebase() {
                 }
             });
 
+            db.ref('jemuran/mode').on('value', (snapshot) => {
+                const val = snapshot.val();
+                if (val && val.mode) {
+                    applyModeUI(val.mode);
+                }
+            });
+
             db.ref('jemuran/logs').limitToLast(35).on('value', (snapshot) => {
                 const logsData = snapshot.val();
                 if (logsData) {
@@ -1168,6 +1180,8 @@ function connectMQTT() {
     mqttClient.on('connect', () => {
         addLog('info', 'MQTT Connected to HiveMQ Broker (Port 8884)');
         mqttClient.subscribe(TOPIC_STATUS);
+        mqttClient.subscribe(TOPIC_MODE);
+        mqttClient.subscribe(TOPIC_CONTROL);
     });
 
     mqttClient.on('message', (topic, message) => {
@@ -1176,6 +1190,11 @@ function connectMQTT() {
                 const data = JSON.parse(message.toString());
                 updateDashboard(data, true);
             } catch (e) {}
+        } else if (topic === TOPIC_MODE) {
+            const m = message.toString().trim().toLowerCase();
+            if (m === 'auto' || m === 'manual') {
+                applyModeUI(m);
+            }
         }
     });
 }
@@ -1196,20 +1215,25 @@ function publishMQTT(topic, message) {
 }
 
 // ==================== CONTROLS ====================
-function setMode(mode) {
-    currentMode = mode;
+function applyModeUI(mode) {
+    if (!mode) return;
+    const m = mode.toLowerCase();
+    currentMode = m;
     const btnAuto = document.getElementById('btnModeAuto');
     const btnManual = document.getElementById('btnModeManual');
     const sidebarMode = document.getElementById('currentModeSidebar');
     const modeDisplay = document.getElementById('currentModeDisplay');
 
-    if (btnAuto) btnAuto.classList.toggle('active', mode === 'auto');
-    if (btnManual) btnManual.classList.toggle('active', mode === 'manual');
-    if (sidebarMode) sidebarMode.textContent = mode.toUpperCase();
-    if (modeDisplay) modeDisplay.textContent = mode.toUpperCase();
+    if (btnAuto) btnAuto.classList.toggle('active', m === 'auto');
+    if (btnManual) btnManual.classList.toggle('active', m === 'manual');
+    if (sidebarMode) sidebarMode.textContent = m.toUpperCase();
+    if (modeDisplay) modeDisplay.textContent = m.toUpperCase();
+}
 
+function setMode(mode) {
+    applyModeUI(mode);
     publishMQTT(TOPIC_MODE, mode);
-    addLog('info', `Mode switched to: ${mode.toUpperCase()}`);
+    addLog('info', `Mode diubah ke: ${mode.toUpperCase()}`);
 }
 
 function controlBlind(action) {
