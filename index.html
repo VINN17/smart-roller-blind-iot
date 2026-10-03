@@ -22,7 +22,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     
     <!-- Custom Stylesheet (with cache buster) -->
-    <link rel="stylesheet" href="css/style.css?v=3.5">
+    <link rel="stylesheet" href="css/style.css?v=3.6">
 </head>
 <body>
 
@@ -317,21 +317,20 @@
             <!-- ==================== TAB 2: MASTER ANALYTICS (2 GRAFIK TERPISAH) ==================== -->
             <section id="tab-analytics" class="tab-pane">
                 
-                <!-- TOOLBAR KONTROL RENTANG DATA & EXPORT SKRIPSI -->
+                <!-- TOOLBAR KONTROL TANGGAL & EXPORT SKRIPSI (TANPA BATAS DATA) -->
                 <div class="analytics-toolbar-card">
                     <div class="toolbar-left">
-                        <span class="toolbar-label">⏱️ Rentang Waktu:</span>
-                        <div class="range-selector-group">
-                            <button class="range-btn" data-range="20" onclick="setChartRange(20)">20 Data</button>
-                            <button class="range-btn active" data-range="50" onclick="setChartRange(50)">50 Data</button>
-                            <button class="range-btn" data-range="100" onclick="setChartRange(100)">100 Data</button>
-                            <button class="range-btn" data-range="300" onclick="setChartRange(300)">Semua (Max 300)</button>
+                        <div class="date-filter-box">
+                            <span class="toolbar-label">📅 Filter Tanggal Data:</span>
+                            <input type="date" id="sensorDatePicker" class="sensor-date-input" onchange="onDateFilterChange(this.value)">
+                            <button class="btn-date-preset active" id="btnDateToday" onclick="filterByToday()">Hari Ini</button>
+                            <button class="btn-date-preset" id="btnDateAll" onclick="filterByAllDates()">Semua Data (Tanpa Batas)</button>
                         </div>
-                        <span class="range-info" id="chartDataCountInfo">Menampilkan 50 data terakhir</span>
+                        <span class="range-info" id="chartDataCountInfo">Memuat histori data sensor...</span>
                     </div>
 
                     <div class="toolbar-right">
-                        <button class="btn-export-act csv" onclick="exportSensorCSV()" title="Download file CSV untuk Microsoft Excel / Olah Data Skripsi">
+                        <button class="btn-export-act csv" onclick="exportSensorCSV()" title="Download seluruh data sensor terpilih ke CSV / Excel">
                             <span>📊</span>
                             <span>Export CSV (Excel)</span>
                         </button>
@@ -339,9 +338,9 @@
                             <span>📥</span>
                             <span>Export JSON</span>
                         </button>
-                        <button class="btn-export-act reset" onclick="clearChartHistory()" title="Reset histori titik grafik">
+                        <button class="btn-export-act reset" onclick="reloadFromFirebase()" title="Muat ulang seluruh data dari Firebase Cloud">
                             <span>🔄</span>
-                            <span>Reset</span>
+                            <span>Sync Cloud</span>
                         </button>
                     </div>
                 </div>
@@ -494,6 +493,6 @@
     </nav>
 
     <!-- Application Script (with cache buster) -->
-    <script src="js/app.js?v=3.5"></script>
+    <script src="js/app.js?v=3.6"></script>
 </body>
 </html>

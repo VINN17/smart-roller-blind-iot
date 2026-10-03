@@ -42,8 +42,61 @@ let latestData = {
 };
 
 let fullSensorHistory = [];
-let chartRangeLimit = 50;
+let selectedDateFilter = 'today'; // 'today', 'all', atau 'YYYY-MM-DD'
 let lastChartPushTime = 0;
+
+function getTodayDateString() {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function getTimestampFromFirebaseKey(key) {
+    if (!key || typeof key !== 'string' || key.length < 8) return null;
+    const PUSH_CHARS = '-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz';
+    let time = 0;
+    for (let i = 0; i < 8; i++) {
+        const c = key.charAt(i);
+        const idx = PUSH_CHARS.indexOf(c);
+        if (idx === -1) return null;
+        time = time * 64 + idx;
+    }
+    return time;
+}
+
+function parseSensorRecord(item, key) {
+    let ts = item.timestamp;
+    if (!ts && key) {
+        ts = getTimestampFromFirebaseKey(key);
+    }
+    if (!ts) ts = Date.now();
+
+    let date = item.date;
+    if (!date && ts) {
+        const d = new Date(ts);
+        date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    if (!date) date = getTodayDateString();
+
+    let time = item.time;
+    if (!time && ts) {
+        time = new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    return {
+        date: date,
+        time: time || '00:00:00',
+        timestamp: ts,
+        temp: Number(item.temp || 0),
+        hum: Number(item.hum || 0),
+        rain1: Number(item.rain1 || 0),
+        rain2: Number(item.rain2 || 0),
+        fuzzyScore: item.fuzzyScore !== undefined ? Number(item.fuzzyScore) : null,
+        blindStatus: item.blindStatus || 'open'
+    };
+}
 
 let logs = [];
 let dhtChart = null;
@@ -86,6 +139,10 @@ window.addEventListener('load', () => {
 
     // Trigger initial render
     updateDashboard(latestData, false);
+
+    // Set nilai awal date picker ke hari ini
+    const picker = document.getElementById('sensorDatePicker');
+    if (picker) picker.value = getTodayDateString();
 
     addLog('info', 'SmartJemur PRO UI with separated charts initialized');
     
@@ -379,14 +436,17 @@ function updateDashboard(data, syncToCloud = false) {
 
     // 5. Push Telemetry to Chart History (Anti-Duplicate Throttling & Auto-Scale)
     const now = Date.now();
-    const timestamp = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const todayStr = getTodayDateString();
+    const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     // Cegah duplikasi data MQTT & Firebase (minimal jeda 3.5 detik atau titik pertama)
     if (now - lastChartPushTime >= 3500 || fullSensorHistory.length === 0) {
         lastChartPushTime = now;
 
         fullSensorHistory.push({
-            time: timestamp,
+            date: todayStr,
+            time: timeStr,
+            timestamp: now,
             temp: Number(temp.toFixed(1)),
             hum: Math.round(hum),
             rain1: Math.round(rain1),
@@ -395,8 +455,8 @@ function updateDashboard(data, syncToCloud = false) {
             blindStatus: isClosed ? 'closed' : 'open'
         });
 
-        // Simpan riwayat maksimal 500 titik data untuk analisis skripsi
-        if (fullSensorHistory.length > 500) {
+        // Simpan kapasitas besar (hingga 5000 record di memori browser)
+        if (fullSensorHistory.length > 5000) {
             fullSensorHistory.shift();
         }
 
@@ -411,6 +471,7 @@ function updateDashboard(data, syncToCloud = false) {
             rain1,
             rain2,
             blindStatus: isClosed ? 'closed' : 'open',
+            fuzzyScore: fuzzyScore,
             isRaining: isRain,
             mode: mode,
             lastUpdate: Date.now()
@@ -419,11 +480,14 @@ function updateDashboard(data, syncToCloud = false) {
         });
 
         db.ref('jemuran/history').push({
-            time: timestamp,
+            date: todayStr,
+            time: timeStr,
+            timestamp: now,
             temp,
             hum,
             rain1,
             rain2,
+            fuzzyScore: fuzzyScore,
             blindStatus: isClosed ? 'closed' : 'open'
         }).catch(err => {
             console.warn('Firebase history push (check Firebase rules):', err.message);
@@ -515,7 +579,13 @@ function initSeparateCharts() {
                 scales: {
                     x: {
                         grid: { color: 'rgba(255, 255, 255, 0.04)' },
-                        ticks: { color: '#64748B', font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 } }
+                        ticks: {
+                            color: '#64748B',
+                            font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 },
+                            autoSkip: true,
+                            maxTicksLimit: 12,
+                            maxRotation: 0
+                        }
                     },
                     yTemp: {
                         type: 'linear',
@@ -590,7 +660,13 @@ function initSeparateCharts() {
                 scales: {
                     x: {
                         grid: { color: 'rgba(255, 255, 255, 0.04)' },
-                        ticks: { color: '#64748B', font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 } }
+                        ticks: {
+                            color: '#64748B',
+                            font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 },
+                            autoSkip: true,
+                            maxTicksLimit: 12,
+                            maxRotation: 0
+                        }
                     },
                     y: {
                         type: 'linear',
@@ -606,96 +682,174 @@ function initSeparateCharts() {
     }
 }
 
+function getFilteredSensorData() {
+    if (!fullSensorHistory || fullSensorHistory.length === 0) return [];
+    
+    if (selectedDateFilter === 'all') {
+        return fullSensorHistory;
+    }
+    
+    const targetDate = (selectedDateFilter === 'today') ? getTodayDateString() : selectedDateFilter;
+    return fullSensorHistory.filter(item => item.date === targetDate);
+}
+
 function updateSeparateCharts() {
-    if (!fullSensorHistory) return;
-    const sliceData = fullSensorHistory.slice(-chartRangeLimit);
-    const timestamps = sliceData.map(d => d.time);
-    const temps = sliceData.map(d => d.temp);
-    const hums = sliceData.map(d => d.hum);
-    const rain1s = sliceData.map(d => d.rain1);
-    const rain2s = sliceData.map(d => d.rain2);
+    const filteredData = getFilteredSensorData();
+    const timestamps = filteredData.map(d => {
+        if (selectedDateFilter === 'all') {
+            const parts = (d.date || '').split('-');
+            const shortDate = parts.length === 3 ? `${parts[2]}/${parts[1]}` : d.date;
+            return `${shortDate} ${d.time}`;
+        }
+        return d.time;
+    });
+
+    const temps = filteredData.map(d => d.temp);
+    const hums = filteredData.map(d => d.hum);
+    const rain1s = filteredData.map(d => d.rain1);
+    const rain2s = filteredData.map(d => d.rain2);
+
+    // Dynamic radius: jika data banyak (>60 titik), sembunyikan bulatan titik agar kurva halus tanpa padat visual
+    const dynamicRadius = filteredData.length > 60 ? 0 : 2.5;
 
     if (dhtChart) {
         dhtChart.data.labels = timestamps;
         dhtChart.data.datasets[0].data = temps;
+        dhtChart.data.datasets[0].pointRadius = dynamicRadius;
         dhtChart.data.datasets[1].data = hums;
+        dhtChart.data.datasets[1].pointRadius = dynamicRadius;
         dhtChart.update('none');
     }
 
     if (rainChart) {
         rainChart.data.labels = timestamps;
         rainChart.data.datasets[0].data = rain1s;
+        rainChart.data.datasets[0].pointRadius = dynamicRadius;
         rainChart.data.datasets[1].data = rain2s;
+        rainChart.data.datasets[1].pointRadius = dynamicRadius;
         rainChart.update('none');
     }
 
     const infoEl = document.getElementById('chartDataCountInfo');
     if (infoEl) {
-        const total = fullSensorHistory.length;
-        const shown = sliceData.length;
-        infoEl.textContent = `Menampilkan ${shown} data (${chartRangeLimit === 300 ? 'Semua' : chartRangeLimit + ' Titik'}) • Total Tersimpan: ${total}`;
+        const dateLabel = (selectedDateFilter === 'all') ? 'Semua Tanggal' : 
+                          (selectedDateFilter === 'today' || selectedDateFilter === getTodayDateString()) ? `Hari Ini (${getTodayDateString()})` : selectedDateFilter;
+        infoEl.textContent = `Menampilkan ${filteredData.length} data sensor (${dateLabel}) • Total Cloud: ${fullSensorHistory.length} data`;
     }
 }
 
-function setChartRange(limit) {
-    chartRangeLimit = Number(limit);
-    document.querySelectorAll('.range-btn').forEach(btn => {
-        btn.classList.toggle('active', Number(btn.getAttribute('data-range')) === chartRangeLimit);
-    });
+function onDateFilterChange(dateVal) {
+    if (!dateVal) {
+        filterByAllDates();
+        return;
+    }
+    selectedDateFilter = dateVal;
+    
+    const btnToday = document.getElementById('btnDateToday');
+    const btnAll = document.getElementById('btnDateAll');
+    if (btnToday) btnToday.classList.toggle('active', dateVal === getTodayDateString());
+    if (btnAll) btnAll.classList.remove('active');
+
     updateSeparateCharts();
-    addLog('info', `Rentang grafik diubah menjadi: ${limit} data`);
+    addLog('info', `Filter data sensor diubah ke tanggal: ${dateVal}`);
+}
+
+function filterByToday() {
+    selectedDateFilter = getTodayDateString();
+    const picker = document.getElementById('sensorDatePicker');
+    if (picker) picker.value = selectedDateFilter;
+
+    const btnToday = document.getElementById('btnDateToday');
+    const btnAll = document.getElementById('btnDateAll');
+    if (btnToday) btnToday.classList.add('active');
+    if (btnAll) btnAll.classList.remove('active');
+
+    updateSeparateCharts();
+    addLog('info', 'Filter data sensor diatur ke: Hari Ini');
+}
+
+function filterByAllDates() {
+    selectedDateFilter = 'all';
+    const picker = document.getElementById('sensorDatePicker');
+    if (picker) picker.value = '';
+
+    const btnToday = document.getElementById('btnDateToday');
+    const btnAll = document.getElementById('btnDateAll');
+    if (btnToday) btnToday.classList.remove('active');
+    if (btnAll) btnAll.classList.add('active');
+
+    updateSeparateCharts();
+    addLog('info', 'Filter data sensor diatur ke: Semua Tanggal (Tanpa Batas)');
+}
+
+function reloadFromFirebase() {
+    if (!db) {
+        alert('Firebase belum terhubung');
+        return;
+    }
+    addLog('info', 'Memuat ulang seluruh histori data dari Firebase Cloud...');
+    db.ref('jemuran/history').limitToLast(2000).once('value', (snapshot) => {
+        const historyData = snapshot.val();
+        if (historyData) {
+            fullSensorHistory = [];
+            Object.entries(historyData).forEach(([key, item]) => {
+                fullSensorHistory.push(parseSensorRecord(item, key));
+            });
+            updateSeparateCharts();
+            addLog('info', `Berhasil memuat ${fullSensorHistory.length} histori data dari Cloud`);
+        } else {
+            addLog('warn', 'Belum ada data histori di Firebase');
+        }
+    });
 }
 
 function exportSensorCSV() {
-    if (fullSensorHistory.length === 0) {
-        alert('Belum ada data sensor yang terekam untuk diekspor!');
+    const dataToExport = getFilteredSensorData();
+    if (dataToExport.length === 0) {
+        alert('Tidak ada data sensor pada tanggal yang dipilih untuk diekspor!');
         return;
     }
 
-    let csvContent = "No,Waktu,Suhu (C),Kelembaban (%),Sensor Hujan 1 (%),Sensor Hujan 2 (%),Skor Fuzzy Sugeno Z,Status Tirai\n";
-    fullSensorHistory.forEach((row, idx) => {
+    let csvContent = "No,Tanggal,Waktu,Suhu (C),Kelembaban (%),Sensor Hujan 1 (%),Sensor Hujan 2 (%),Skor Fuzzy Sugeno Z,Status Tirai\n";
+    dataToExport.forEach((row, idx) => {
         const fz = row.fuzzyScore !== null ? row.fuzzyScore : "-";
         const st = row.blindStatus === 'closed' ? 'Tutup' : 'Buka';
-        csvContent += `${idx + 1},${row.time},${row.temp},${row.hum},${row.rain1},${row.rain2},${fz},${st}\n`;
+        csvContent += `${idx + 1},${row.date},${row.time},${row.temp},${row.hum},${row.rain1},${row.rain2},${fz},${st}\n`;
     });
 
     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const nowStr = new Date().toISOString().slice(0, 10);
-    a.download = `Data_Telemetri_Sensor_Skripsi_${nowStr}.csv`;
+    const filterTag = selectedDateFilter === 'all' ? 'Semua_Tanggal' : selectedDateFilter;
+    a.download = `Data_Sensor_Jemuran_${filterTag}_${Date.now()}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    addLog('info', `Data sensor berhasil diekspor ke CSV (${fullSensorHistory.length} baris untuk Excel)`);
+    addLog('info', `Berhasil mengekspor ${dataToExport.length} baris data ke CSV (Excel) untuk tanggal: ${filterTag}`);
 }
 
 function exportSensorJSON() {
-    if (fullSensorHistory.length === 0) {
-        alert('Belum ada data sensor yang terekam!');
+    const dataToExport = getFilteredSensorData();
+    if (dataToExport.length === 0) {
+        alert('Tidak ada data sensor pada tanggal yang dipilih!');
         return;
     }
-    const dataStr = JSON.stringify(fullSensorHistory, null, 2);
+    const dataStr = JSON.stringify(dataToExport, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Data_Telemetri_Sensor_${Date.now()}.json`;
+    const filterTag = selectedDateFilter === 'all' ? 'Semua_Tanggal' : selectedDateFilter;
+    a.download = `Data_Sensor_Jemuran_${filterTag}_${Date.now()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    addLog('info', `Data sensor berhasil diekspor ke JSON (${fullSensorHistory.length} data)`);
-}
-
-function clearChartHistory() {
-    fullSensorHistory = [];
-    updateSeparateCharts();
-    addLog('info', 'Histori grafik berhasil di-reset');
+    addLog('info', `Berhasil mengekspor ${dataToExport.length} data sensor ke JSON`);
 }
 
 function toggleDHTDataset(index) {
@@ -864,19 +1018,11 @@ function initFirebase() {
                 if (data) updateDashboard(data, false);
             });
 
-            db.ref('jemuran/history').limitToLast(100).once('value', (snapshot) => {
+            db.ref('jemuran/history').limitToLast(2000).once('value', (snapshot) => {
                 const historyData = snapshot.val();
                 if (historyData && fullSensorHistory.length === 0) {
-                    Object.values(historyData).forEach(item => {
-                        fullSensorHistory.push({
-                            time: item.time || '',
-                            temp: Number(item.temp || 0),
-                            hum: Number(item.hum || 0),
-                            rain1: Number(item.rain1 || 0),
-                            rain2: Number(item.rain2 || 0),
-                            fuzzyScore: item.fuzzyScore !== undefined ? Number(item.fuzzyScore) : null,
-                            blindStatus: item.blindStatus || 'open'
-                        });
+                    Object.entries(historyData).forEach(([key, item]) => {
+                        fullSensorHistory.push(parseSensorRecord(item, key));
                     });
                     updateSeparateCharts();
                 }
