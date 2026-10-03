@@ -582,8 +582,11 @@ void loop() {
     r2 = map(constrain(rawRain2, 500, 4095), 4095, 500, 0, 100);
 
     // Output Serial untuk observasi dan data penelitian skripsi
-    Serial.printf("[SENSOR RAW] R1_ADC: %d (%d%%) | R2_ADC: %d (%d%%) | Temp: %.1f C | Hum: %.1f %% | Jam: %02d:%02d\n",
-                  rawRain1, r1, rawRain2, r2, temp, hum, jam, menit);
+    int swAtas = digitalRead(LIMIT_SWITCH_ATAS);
+    Serial.printf("[SENSOR RAW] R1_ADC: %d (%d%%) | R2_ADC: %d (%d%%) | Temp: %.1f C | Hum: %.1f %% | SwitchAtas: %s (Pin22: %d) | Jam: %02d:%02d\n",
+                  rawRain1, r1, rawRain2, r2, temp, hum,
+                  (swAtas == 0 ? "PRESSED" : "FREE"), swAtas,
+                  jam, menit);
   }
 
   // 2. Logika Pengambilan Keputusan AUTO (Fuzzy Sugeno)
@@ -631,13 +634,15 @@ void loop() {
       }
 
       // Debug Serial Skripsi: Output variabel fuzzy lengkap
-      Serial.printf("FUZZY AUTO || Z: %.3f | Aksi: %s | Cuaca: %s | Pos: %d/%d | R_score: %.1f%% | Hum: %.1f%% | Temp: %.1f C | TopSwitch: %s\n",
+      int swAtasAuto = digitalRead(LIMIT_SWITCH_ATAS);
+      Serial.printf("FUZZY AUTO || Z: %.3f | Aksi: %s | Cuaca: %s | Pos: %d/%d | R_score: %.1f%% | Hum: %.1f%% | Temp: %.1f C | SwitchAtas: %s (Pin22: %d) | Homing: %s\n",
                     fuzzyScore,
                     (targetCommand == CMD_NAIK ? "NAIK" : "TURUN"),
                     weatherStatus.c_str(),
                     motorCounter, MAX_COUNTER,
                     r_score, hum, temp,
-                    (digitalRead(LIMIT_SWITCH_ATAS) == 0 ? "PRESSED" : "FREE"));
+                    (swAtasAuto == 0 ? "PRESSED" : "FREE"), swAtasAuto,
+                    (isCalibratingHoming ? "AKTIF" : "OFF"));
     }
   }
   // Logika MANUAL mode
@@ -654,11 +659,12 @@ void loop() {
         weatherStatus = "Cerah";
       }
 
-      Serial.printf("MANUAL || Pos: %d/%d | Command: %s | Locked: %s | TopSwitch: %s\n",
+      int swAtasMan = digitalRead(LIMIT_SWITCH_ATAS);
+      Serial.printf("MANUAL || Pos: %d/%d | Command: %s | Locked: %s | SwitchAtas: %s (Pin22: %d)\n",
                     motorCounter, MAX_COUNTER,
                     (motorCommand == CMD_NAIK ? "NAIK" : (motorCommand == CMD_TURUN ? "TURUN" : "STOP")),
                     (motorLocked ? "YES" : "NO"),
-                    (digitalRead(LIMIT_SWITCH_ATAS) == 0 ? "PRESSED" : "FREE"));
+                    (swAtasMan == 0 ? "PRESSED" : "FREE"), swAtasMan);
     }
   }
 
