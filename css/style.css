@@ -1214,6 +1214,92 @@ body {
     grid-template-columns: repeat(3, 1fr);
     gap: 12px;
     margin-bottom: 20px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.motor-actions-grid.auto-mode {
+    display: flex;
+    justify-content: center;
+}
+
+.motor-actions-grid.auto-mode .btn-motor.stop {
+    width: 100%;
+    max-width: 380px;
+    padding: 16px 20px;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1.5px solid rgba(245, 158, 11, 0.45);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.15);
+}
+
+.motor-actions-grid.auto-mode .btn-motor.stop:hover {
+    background: rgba(245, 158, 11, 0.25);
+    border-color: rgba(245, 158, 11, 0.8);
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.4);
+    transform: translateY(-2px);
+}
+
+/* Auto Mode Informational Banner */
+.auto-mode-info-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    margin-top: 18px;
+    margin-bottom: 20px;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(14, 165, 233, 0.08));
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    animation: fadeInSlide 0.3s ease;
+}
+
+.auto-banner-icon {
+    font-size: 1.8rem;
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.5));
+}
+
+.auto-banner-content {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.auto-banner-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #A5B4FC;
+    letter-spacing: 0.3px;
+}
+
+.auto-banner-sub {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.45;
+}
+
+.quick-auto-notice {
+    text-align: center;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    border-radius: var(--radius-sm);
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px dashed rgba(99, 102, 241, 0.35);
+    color: #A5B4FC;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+@keyframes fadeInSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .btn-motor {

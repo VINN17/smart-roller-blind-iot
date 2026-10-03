@@ -288,7 +288,7 @@
                             <span style="font-size: 1.1rem; color: var(--amber);">⚡</span>
                             <h3>Quick Control</h3>
                         </div>
-                        <div class="quick-ctrl-btn-group">
+                        <div class="quick-ctrl-btn-group" id="quickCtrlBtnGroup">
                             <button class="btn-quick-act open" onclick="controlBlind('naik')">
                                 <span>⬆️</span>
                                 <span>Buka Jemuran</span>
@@ -297,6 +297,9 @@
                                 <span>⬇️</span>
                                 <span>Tutup Jemuran</span>
                             </button>
+                        </div>
+                        <div id="quickAutoNotice" class="quick-auto-notice" style="display: none;">
+                            <span>🤖 Mode AUTO Aktif &bull; Kontrol manual dinonaktifkan</span>
                         </div>
                         <div class="actuator-progress-wrapper">
                             <div class="actuator-status-labels">
@@ -416,7 +419,7 @@
                         <span class="pro-badge">Actuator Manager</span>
                     </div>
 
-                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px;">
+                    <p id="modeDescriptionText" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px;">
                         Pilih mode operasional sistem. Pada mode <strong>MANUAL</strong>, kamu memiliki kendali penuh untuk menaikkan atau menurunkan tirai jemuran melalui tombol di bawah ini.
                     </p>
 
@@ -425,16 +428,25 @@
                         <button class="mode-btn" id="btnModeManual" onclick="setMode('manual')">✋ MANUAL MODE</button>
                     </div>
 
-                    <div class="motor-actions-grid" style="margin-top: 24px;">
-                        <button class="btn-motor up" onclick="controlBlind('naik')">
+                    <!-- Auto Mode Informational Banner -->
+                    <div id="autoModeInfoBanner" class="auto-mode-info-banner" style="display: none;">
+                        <div class="auto-banner-icon">🤖</div>
+                        <div class="auto-banner-content">
+                            <div class="auto-banner-title">Mode Otomatis Aktif (Fuzzy Sugeno)</div>
+                            <div class="auto-banner-sub">Tirai dikontrol otomatis berdasarkan sensor cuaca. Tombol Naik dan Turun dinonaktifkan. Tombol <strong>STOP</strong> tetap tersedia untuk penghentian darurat.</div>
+                        </div>
+                    </div>
+
+                    <div class="motor-actions-grid" id="motorActionsGrid" style="margin-top: 24px;">
+                        <button class="btn-motor up" id="btnMotorUp" onclick="controlBlind('naik')">
                             <span class="btn-icon">⬆️</span>
                             <span style="font-size: 1rem;">NAIK (Buka)</span>
                         </button>
-                        <button class="btn-motor stop" onclick="controlBlind('stop')">
+                        <button class="btn-motor stop" id="btnMotorStop" onclick="controlBlind('stop')">
                             <span class="btn-icon">⏹️</span>
-                            <span style="font-size: 1rem;">STOP</span>
+                            <span id="btnMotorStopText" style="font-size: 1rem;">STOP</span>
                         </button>
-                        <button class="btn-motor down" onclick="controlBlind('turun')">
+                        <button class="btn-motor down" id="btnMotorDown" onclick="controlBlind('turun')">
                             <span class="btn-icon">⬇️</span>
                             <span style="font-size: 1rem;">TURUN (Tutup)</span>
                         </button>
@@ -497,6 +509,6 @@
     </nav>
 
     <!-- Application Script (with cache buster) -->
-    <script src="js/app.js?v=3.9"></script>
+    <script src="js/app.js?v=4.0"></script>
 </body>
 </html>

@@ -232,9 +232,19 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
-// ==================== FUNGSI REQUEST KONTROL MOTOR (MANUAL) ====================
+// ==================== FUNGSI REQUEST KONTROL MOTOR (MANUAL / EMERGENCY STOP) ====================
 void requestMotorControl(MotorCommand cmd) {
-  if (currentMode != MANUAL) return;
+  if (currentMode != MANUAL) {
+    if (cmd == CMD_STOP) {
+      stopMotorImmediate();
+      isCalibratingHoming = false;
+      targetCommand = CMD_STOP;
+      motorCommand = CMD_STOP;
+      motorLocked = true;
+      Serial.println("EMERGENCY STOP [AUTO]: Motor dihentikan paksa!");
+    }
+    return;
+  }
 
   // Mode manual: unlock jika perintah berbeda
   if (motorLocked && cmd != motorCommand) {

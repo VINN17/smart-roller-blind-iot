@@ -138,6 +138,7 @@ window.addEventListener('load', () => {
     connectMQTT();
 
     // Trigger initial render
+    applyModeUI(currentMode);
     updateDashboard(latestData, false);
 
     // Set nilai awal date picker ke hari ini
@@ -1219,15 +1220,62 @@ function applyModeUI(mode) {
     if (!mode) return;
     const m = mode.toLowerCase();
     currentMode = m;
+    const isAuto = (m === 'auto');
+
     const btnAuto = document.getElementById('btnModeAuto');
     const btnManual = document.getElementById('btnModeManual');
     const sidebarMode = document.getElementById('currentModeSidebar');
     const modeDisplay = document.getElementById('currentModeDisplay');
+    const modeDesc = document.getElementById('modeDescriptionText');
+    const actionsGrid = document.getElementById('motorActionsGrid');
+    const autoBanner = document.getElementById('autoModeInfoBanner');
+    const btnUp = document.getElementById('btnMotorUp');
+    const btnDown = document.getElementById('btnMotorDown');
+    const stopText = document.getElementById('btnMotorStopText');
 
-    if (btnAuto) btnAuto.classList.toggle('active', m === 'auto');
-    if (btnManual) btnManual.classList.toggle('active', m === 'manual');
+    if (btnAuto) btnAuto.classList.toggle('active', isAuto);
+    if (btnManual) btnManual.classList.toggle('active', !isAuto);
     if (sidebarMode) sidebarMode.textContent = m.toUpperCase();
-    if (modeDisplay) modeDisplay.textContent = m.toUpperCase();
+    if (modeDisplay) {
+        modeDisplay.textContent = m.toUpperCase();
+        modeDisplay.style.color = isAuto ? 'var(--cyan)' : 'var(--amber)';
+    }
+
+    if (modeDesc) {
+        if (isAuto) {
+            modeDesc.innerHTML = 'Mode <strong>AUTO</strong> aktif. Tirai jemuran beroperasi otomatis menggunakan logika Fuzzy Sugeno sesuai data sensor cuaca.';
+        } else {
+            modeDesc.innerHTML = 'Mode <strong>MANUAL</strong> aktif. Kamu memiliki kendali penuh untuk menaikkan atau menurunkan tirai jemuran melalui tombol di bawah ini.';
+        }
+    }
+
+    if (autoBanner) {
+        autoBanner.style.display = isAuto ? 'flex' : 'none';
+    }
+
+    if (actionsGrid) {
+        actionsGrid.classList.toggle('auto-mode', isAuto);
+    }
+
+    if (btnUp) {
+        btnUp.style.display = isAuto ? 'none' : 'flex';
+    }
+    if (btnDown) {
+        btnDown.style.display = isAuto ? 'none' : 'flex';
+    }
+    if (stopText) {
+        stopText.textContent = isAuto ? 'EMERGENCY STOP' : 'STOP';
+    }
+
+    // Quick control di Tab Overview
+    const quickGroup = document.getElementById('quickCtrlBtnGroup');
+    const quickNotice = document.getElementById('quickAutoNotice');
+    if (quickGroup) {
+        quickGroup.style.display = isAuto ? 'none' : 'grid';
+    }
+    if (quickNotice) {
+        quickNotice.style.display = isAuto ? 'block' : 'none';
+    }
 }
 
 function setMode(mode) {
@@ -1237,12 +1285,17 @@ function setMode(mode) {
 }
 
 function controlBlind(action) {
+    if (action !== 'stop' && currentMode === 'auto') {
+        addLog('warn', `Perintah [${action.toUpperCase()}] diabaikan: Sistem dalam AUTO MODE. Ubah ke MANUAL MODE untuk kontrol manual.`);
+        return;
+    }
+
     publishMQTT(TOPIC_CONTROL, action);
     
     const motorStatusDisplay = document.getElementById('motorStatusDisplay');
     if (motorStatusDisplay) {
         motorStatusDisplay.textContent = action.toUpperCase();
-        motorStatusDisplay.style.color = (action === 'turun') ? 'var(--rose)' : 'var(--emerald)';
+        motorStatusDisplay.style.color = (action === 'turun') ? 'var(--rose)' : (action === 'naik' ? 'var(--emerald)' : 'var(--amber)');
     }
 
     if (action === 'naik') {
@@ -1251,6 +1304,8 @@ function controlBlind(action) {
     } else if (action === 'turun') {
         updateActuatorUI(0);
         addLog('info', 'Motor command: Tutup Jemuran (TURUN)');
+    } else if (action === 'stop') {
+        addLog('warn', currentMode === 'auto' ? 'Emergency STOP motor dipicu (Mode AUTO)' : 'Motor command: STOP');
     }
 }
 
