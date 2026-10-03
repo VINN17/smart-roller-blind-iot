@@ -41,14 +41,9 @@ let latestData = {
     mode: 'auto'
 };
 
-let sensorHistory = {
-    timestamps: [],
-    temp: [],
-    hum: [],
-    rain1: [],
-    rain2: [],
-    blindStatus: []
-};
+let fullSensorHistory = [];
+let chartRangeLimit = 50;
+let lastChartPushTime = 0;
 
 let logs = [];
 let dhtChart = null;
@@ -93,7 +88,48 @@ window.addEventListener('load', () => {
     updateDashboard(latestData, false);
 
     addLog('info', 'SmartJemur PRO UI with separated charts initialized');
+    
+    // Mulai watchdog deteksi hardware offline setiap 3 detik
+    setInterval(checkHardwareStatus, 3000);
 });
+
+// ==================== WATCHDOG HARDWARE STATUS ====================
+let lastHardwareHeartbeat = 0;
+let isHardwareOnline = false;
+
+function onHardwareHeartbeat() {
+    lastHardwareHeartbeat = Date.now();
+    if (!isHardwareOnline) {
+        isHardwareOnline = true;
+        const pulseDot = document.getElementById('systemPulseDot');
+        const cloudText = document.getElementById('systemCloudText');
+        if (pulseDot) {
+            pulseDot.style.background = '#10B981';
+            pulseDot.style.boxShadow = '0 0 10px #10B981';
+        }
+        if (cloudText) cloudText.textContent = 'ESP32 Online';
+        addLog('info', 'Hardware ESP32 terhubung (Online)');
+    }
+}
+
+function checkHardwareStatus() {
+    const now = Date.now();
+    // Jika tidak ada data dari hardware selama > 15 detik
+    if (lastHardwareHeartbeat > 0 && (now - lastHardwareHeartbeat > 15000)) {
+        if (isHardwareOnline) {
+            isHardwareOnline = false;
+            const pulseDot = document.getElementById('systemPulseDot');
+            const cloudText = document.getElementById('systemCloudText');
+            if (pulseDot) {
+                pulseDot.style.background = '#F43F5E';
+                pulseDot.style.boxShadow = '0 0 10px #F43F5E';
+            }
+            if (cloudText) cloudText.textContent = 'ESP32 Offline';
+            addLog('warn', 'Hardware ESP32 terputus / mati (>15 detik tanpa data)');
+        }
+    }
+}
+
 
 // ==================== CLOCK ====================
 function updateSystemClock() {
@@ -280,7 +316,7 @@ function updateDashboard(data, syncToCloud = false) {
     if (statusRain1) statusRain1.textContent = rain1 > 20 ? 'Terdeteksi air' : 'Tidak ada hujan';
     if (statusRain2) statusRain2.textContent = rain2 > 20 ? 'Terdeteksi air' : 'Aman';
 
-    // 3. Condition Card & Fusion
+    // 3. Condition Card & Fusion (Fuzzy Sugeno Integration)
     const condTitle = document.getElementById('conditionHeroTitle');
     const condSub = document.getElementById('conditionHeroSub');
     const condGlow = document.getElementById('conditionIconGlow');
@@ -288,31 +324,32 @@ function updateDashboard(data, syncToCloud = false) {
     const fusionTitle = document.getElementById('fusionBadgeTitle');
     const fusionDesc = document.getElementById('fusionDescText');
     const fusionGauge = document.getElementById('fusionGaugeProg');
+    const fuzzyScore = data.fuzzyScore !== undefined ? Number(data.fuzzyScore) : null;
 
     if (isRain) {
         if (condTitle) condTitle.textContent = 'Hujan Terdeteksi';
-        if (condSub) condSub.textContent = 'Tirai menutup otomatis';
+        if (condSub) condSub.textContent = 'Tirai menutup otomatis (Fuzzy Sugeno)';
         if (condGlow) condGlow.textContent = '🌧️';
         if (weatherPill) weatherPill.innerHTML = `<span>🌧️</span><span>Hujan</span>`;
         if (fusionTitle) {
-            fusionTitle.textContent = 'Waspada Hujan!';
+            fusionTitle.textContent = fuzzyScore !== null ? `Waspada Hujan! (Fuzzy Z: ${fuzzyScore.toFixed(2)})` : 'Waspada Hujan!';
             fusionTitle.style.color = 'var(--rose)';
         }
-        if (fusionDesc) fusionDesc.textContent = 'Sensor mendeteksi presipitasi air hujan. Tirai segera ditutup untuk mengamankan pakaian dari kebasahan.';
+        if (fusionDesc) fusionDesc.textContent = 'Sensor mendeteksi presipitasi air hujan. Logika Sugeno mengarahkan aktuator untuk menutup tirai segera.';
         if (fusionGauge) {
             fusionGauge.style.strokeDashoffset = '140';
             fusionGauge.style.stroke = 'var(--rose)';
         }
     } else if (hum > 85 && temp < 27) {
         if (condTitle) condTitle.textContent = 'Mendung (Potensi Hujan)';
-        if (condSub) condSub.textContent = 'Kelembaban udara sangat tinggi';
+        if (condSub) condSub.textContent = 'Kelembaban atmosfer tinggi';
         if (condGlow) condGlow.textContent = '☁️';
         if (weatherPill) weatherPill.innerHTML = `<span>☁️</span><span>Mendung</span>`;
         if (fusionTitle) {
-            fusionTitle.textContent = 'Potensi Mendung';
+            fusionTitle.textContent = fuzzyScore !== null ? `Mendung / Potensi Hujan (Z: ${fuzzyScore.toFixed(2)})` : 'Potensi Mendung';
             fusionTitle.style.color = 'var(--amber)';
         }
-        if (fusionDesc) fusionDesc.textContent = 'Kelembaban atmosfer melonjak tinggi. Siaga bila sewaktu-waktu turun hujan lebat.';
+        if (fusionDesc) fusionDesc.textContent = 'Suhu rendah dan kelembaban atmosfer tinggi. Logika Fuzzy Sugeno siap mengamankan jemuran.';
         if (fusionGauge) {
             fusionGauge.style.strokeDashoffset = '90';
             fusionGauge.style.stroke = 'var(--amber)';
@@ -323,38 +360,48 @@ function updateDashboard(data, syncToCloud = false) {
         if (condGlow) condGlow.textContent = '☀️';
         if (weatherPill) weatherPill.innerHTML = `<span>☀️</span><span>Cerah (Optimal)</span>`;
         if (fusionTitle) {
-            fusionTitle.textContent = 'Optimal untuk Menjemur';
+            fusionTitle.textContent = fuzzyScore !== null ? `Optimal Menjemur (Fuzzy Z: ${fuzzyScore.toFixed(2)})` : 'Optimal untuk Menjemur';
             fusionTitle.style.color = 'var(--emerald)';
         }
-        if (fusionDesc) fusionDesc.textContent = 'Semua parameter lingkungan ideal untuk menjemur pakaian. Kombinasi suhu, kelembaban, angin, dan kondisi kering sangat baik.';
+        if (fusionDesc) fusionDesc.textContent = 'Kondisi lingkungan ideal. Output defuzzifikasi Sugeno menunjukkan kondisi sangat aman untuk menjemur.';
         if (fusionGauge) {
             fusionGauge.style.strokeDashoffset = '25';
             fusionGauge.style.stroke = 'var(--emerald)';
         }
     }
 
+    // Update Heartbeat Status (Online)
+    onHardwareHeartbeat();
+
     // 4. Actuator Progress Bar
     updateActuatorUI(isClosed ? 0 : 100);
     updateHeroBackground(isRain);
 
-    // 5. Push Telemetry to Chart History
+    // 5. Push Telemetry to Chart History (Anti-Duplicate Throttling & Auto-Scale)
+    const now = Date.now();
     const timestamp = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    sensorHistory.timestamps.push(timestamp);
-    sensorHistory.temp.push(temp);
-    sensorHistory.hum.push(hum);
-    sensorHistory.rain1.push(rain1);
-    sensorHistory.rain2.push(rain2);
-    sensorHistory.blindStatus.push(isClosed ? 1 : 0);
 
-    if (sensorHistory.timestamps.length > 25) {
-        sensorHistory.timestamps.shift();
-        sensorHistory.temp.shift();
-        sensorHistory.hum.shift();
-        sensorHistory.rain1.shift();
-        sensorHistory.rain2.shift();
-        sensorHistory.blindStatus.shift();
+    // Cegah duplikasi data MQTT & Firebase (minimal jeda 3.5 detik atau titik pertama)
+    if (now - lastChartPushTime >= 3500 || fullSensorHistory.length === 0) {
+        lastChartPushTime = now;
+
+        fullSensorHistory.push({
+            time: timestamp,
+            temp: Number(temp.toFixed(1)),
+            hum: Math.round(hum),
+            rain1: Math.round(rain1),
+            rain2: Math.round(rain2),
+            fuzzyScore: fuzzyScore !== null ? Number(fuzzyScore.toFixed(3)) : null,
+            blindStatus: isClosed ? 'closed' : 'open'
+        });
+
+        // Simpan riwayat maksimal 500 titik data untuk analisis skripsi
+        if (fullSensorHistory.length > 500) {
+            fullSensorHistory.shift();
+        }
+
+        updateSeparateCharts();
     }
-    updateSeparateCharts();
 
     // 6. Dual Cloud Sync
     if (syncToCloud && isFirebaseReady && db) {
@@ -560,19 +607,95 @@ function initSeparateCharts() {
 }
 
 function updateSeparateCharts() {
+    if (!fullSensorHistory) return;
+    const sliceData = fullSensorHistory.slice(-chartRangeLimit);
+    const timestamps = sliceData.map(d => d.time);
+    const temps = sliceData.map(d => d.temp);
+    const hums = sliceData.map(d => d.hum);
+    const rain1s = sliceData.map(d => d.rain1);
+    const rain2s = sliceData.map(d => d.rain2);
+
     if (dhtChart) {
-        dhtChart.data.labels = sensorHistory.timestamps;
-        dhtChart.data.datasets[0].data = sensorHistory.temp;
-        dhtChart.data.datasets[1].data = sensorHistory.hum;
+        dhtChart.data.labels = timestamps;
+        dhtChart.data.datasets[0].data = temps;
+        dhtChart.data.datasets[1].data = hums;
         dhtChart.update('none');
     }
 
     if (rainChart) {
-        rainChart.data.labels = sensorHistory.timestamps;
-        rainChart.data.datasets[0].data = sensorHistory.rain1;
-        rainChart.data.datasets[1].data = sensorHistory.rain2;
+        rainChart.data.labels = timestamps;
+        rainChart.data.datasets[0].data = rain1s;
+        rainChart.data.datasets[1].data = rain2s;
         rainChart.update('none');
     }
+
+    const infoEl = document.getElementById('chartDataCountInfo');
+    if (infoEl) {
+        const total = fullSensorHistory.length;
+        const shown = sliceData.length;
+        infoEl.textContent = `Menampilkan ${shown} data (${chartRangeLimit === 300 ? 'Semua' : chartRangeLimit + ' Titik'}) • Total Tersimpan: ${total}`;
+    }
+}
+
+function setChartRange(limit) {
+    chartRangeLimit = Number(limit);
+    document.querySelectorAll('.range-btn').forEach(btn => {
+        btn.classList.toggle('active', Number(btn.getAttribute('data-range')) === chartRangeLimit);
+    });
+    updateSeparateCharts();
+    addLog('info', `Rentang grafik diubah menjadi: ${limit} data`);
+}
+
+function exportSensorCSV() {
+    if (fullSensorHistory.length === 0) {
+        alert('Belum ada data sensor yang terekam untuk diekspor!');
+        return;
+    }
+
+    let csvContent = "No,Waktu,Suhu (C),Kelembaban (%),Sensor Hujan 1 (%),Sensor Hujan 2 (%),Skor Fuzzy Sugeno Z,Status Tirai\n";
+    fullSensorHistory.forEach((row, idx) => {
+        const fz = row.fuzzyScore !== null ? row.fuzzyScore : "-";
+        const st = row.blindStatus === 'closed' ? 'Tutup' : 'Buka';
+        csvContent += `${idx + 1},${row.time},${row.temp},${row.hum},${row.rain1},${row.rain2},${fz},${st}\n`;
+    });
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const nowStr = new Date().toISOString().slice(0, 10);
+    a.download = `Data_Telemetri_Sensor_Skripsi_${nowStr}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    addLog('info', `Data sensor berhasil diekspor ke CSV (${fullSensorHistory.length} baris untuk Excel)`);
+}
+
+function exportSensorJSON() {
+    if (fullSensorHistory.length === 0) {
+        alert('Belum ada data sensor yang terekam!');
+        return;
+    }
+    const dataStr = JSON.stringify(fullSensorHistory, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Data_Telemetri_Sensor_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    addLog('info', `Data sensor berhasil diekspor ke JSON (${fullSensorHistory.length} data)`);
+}
+
+function clearChartHistory() {
+    fullSensorHistory = [];
+    updateSeparateCharts();
+    addLog('info', 'Histori grafik berhasil di-reset');
 }
 
 function toggleDHTDataset(index) {
@@ -741,19 +864,20 @@ function initFirebase() {
                 if (data) updateDashboard(data, false);
             });
 
-            db.ref('jemuran/history').limitToLast(25).on('value', (snapshot) => {
+            db.ref('jemuran/history').limitToLast(100).once('value', (snapshot) => {
                 const historyData = snapshot.val();
-                if (historyData) {
-                    const temp = [], hum = [], rain1 = [], rain2 = [], timestamps = [], blindStatus = [];
+                if (historyData && fullSensorHistory.length === 0) {
                     Object.values(historyData).forEach(item => {
-                        timestamps.push(item.time || '');
-                        temp.push(Number(item.temp || 0));
-                        hum.push(Number(item.hum || 0));
-                        rain1.push(Number(item.rain1 || 0));
-                        rain2.push(Number(item.rain2 || 0));
-                        blindStatus.push(item.blindStatus === 'closed' ? 1 : 0);
+                        fullSensorHistory.push({
+                            time: item.time || '',
+                            temp: Number(item.temp || 0),
+                            hum: Number(item.hum || 0),
+                            rain1: Number(item.rain1 || 0),
+                            rain2: Number(item.rain2 || 0),
+                            fuzzyScore: item.fuzzyScore !== undefined ? Number(item.fuzzyScore) : null,
+                            blindStatus: item.blindStatus || 'open'
+                        });
                     });
-                    sensorHistory = { temp, hum, rain1, rain2, timestamps, blindStatus };
                     updateSeparateCharts();
                 }
             });

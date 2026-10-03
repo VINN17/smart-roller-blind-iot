@@ -946,6 +946,126 @@ body {
     gap: 10px;
 }
 
+/* Toolbar Kontrol Grafik & Export Sensor Skripsi */
+.analytics-toolbar-card {
+    background: var(--bg-card);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.toolbar-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.range-selector-group {
+    display: flex;
+    background: rgba(10, 16, 28, 0.6);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 3px;
+    gap: 4px;
+}
+
+.range-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.range-btn:hover {
+    color: #FFF;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.range-btn.active {
+    background: var(--primary);
+    color: #FFF;
+    box-shadow: 0 2px 10px rgba(99, 102, 241, 0.4);
+}
+
+.range-info {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.btn-export-act {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: var(--transition);
+}
+
+.btn-export-act.csv {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: #34D399;
+}
+.btn-export-act.csv:hover {
+    background: var(--emerald);
+    color: #FFF;
+    box-shadow: 0 0 16px rgba(16, 185, 129, 0.4);
+    transform: translateY(-2px);
+}
+
+.btn-export-act.json {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #38BDF8;
+}
+.btn-export-act.json:hover {
+    background: var(--cyan);
+    color: #070B13;
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
+    transform: translateY(-2px);
+}
+
+.btn-export-act.reset {
+    background: rgba(100, 116, 139, 0.15);
+    border-color: rgba(100, 116, 139, 0.3);
+    color: var(--text-secondary);
+}
+.btn-export-act.reset:hover {
+    background: rgba(244, 63, 94, 0.2);
+    border-color: var(--rose);
+    color: #FB7185;
+}
+
 /* Master Unified Chart Container */
 .unified-chart-card {
     background: var(--bg-card);

@@ -22,7 +22,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     
     <!-- Custom Stylesheet (with cache buster) -->
-    <link rel="stylesheet" href="css/style.css?v=3.0">
+    <link rel="stylesheet" href="css/style.css?v=3.5">
 </head>
 <body>
 
@@ -317,6 +317,35 @@
             <!-- ==================== TAB 2: MASTER ANALYTICS (2 GRAFIK TERPISAH) ==================== -->
             <section id="tab-analytics" class="tab-pane">
                 
+                <!-- TOOLBAR KONTROL RENTANG DATA & EXPORT SKRIPSI -->
+                <div class="analytics-toolbar-card">
+                    <div class="toolbar-left">
+                        <span class="toolbar-label">⏱️ Rentang Waktu:</span>
+                        <div class="range-selector-group">
+                            <button class="range-btn" data-range="20" onclick="setChartRange(20)">20 Data</button>
+                            <button class="range-btn active" data-range="50" onclick="setChartRange(50)">50 Data</button>
+                            <button class="range-btn" data-range="100" onclick="setChartRange(100)">100 Data</button>
+                            <button class="range-btn" data-range="300" onclick="setChartRange(300)">Semua (Max 300)</button>
+                        </div>
+                        <span class="range-info" id="chartDataCountInfo">Menampilkan 50 data terakhir</span>
+                    </div>
+
+                    <div class="toolbar-right">
+                        <button class="btn-export-act csv" onclick="exportSensorCSV()" title="Download file CSV untuk Microsoft Excel / Olah Data Skripsi">
+                            <span>📊</span>
+                            <span>Export CSV (Excel)</span>
+                        </button>
+                        <button class="btn-export-act json" onclick="exportSensorJSON()" title="Download file JSON">
+                            <span>📥</span>
+                            <span>Export JSON</span>
+                        </button>
+                        <button class="btn-export-act reset" onclick="clearChartHistory()" title="Reset histori titik grafik">
+                            <span>🔄</span>
+                            <span>Reset</span>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- GRAFIK 1: SUHU & KELEMBABAN UDARA (DHT22) -->
                 <div class="unified-chart-card">
                     <div class="chart-header-controls">
@@ -465,6 +494,6 @@
     </nav>
 
     <!-- Application Script (with cache buster) -->
-    <script src="js/app.js?v=3.2"></script>
+    <script src="js/app.js?v=3.5"></script>
 </body>
 </html>
