@@ -803,6 +803,116 @@ function reloadFromFirebase() {
     });
 }
 
+function exportSensorExcel() {
+    const dataToExport = getFilteredSensorData();
+    if (dataToExport.length === 0) {
+        alert('Tidak ada data sensor pada tanggal yang dipilih untuk diekspor!');
+        return;
+    }
+
+    const filterTag = selectedDateFilter === 'all' ? 'Semua_Tanggal' : selectedDateFilter;
+    const exportTimeStr = new Date().toLocaleString('id-ID');
+
+    let tableHtml = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+    <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8"/>
+    <!--[if gte mso 9]>
+    <xml>
+      <x:ExcelWorkbook>
+        <x:ExcelWorksheets>
+          <x:ExcelWorksheet>
+            <x:Name>Data Sensor Jemuran</x:Name>
+            <x:WorksheetOptions>
+              <x:DisplayGridlines/>
+            </x:WorksheetOptions>
+          </x:ExcelWorksheet>
+        </x:ExcelWorksheets>
+      </x:ExcelWorkbook>
+    </xml>
+    <![endif]-->
+    <style>
+      body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; }
+      table { border-collapse: collapse; width: 100%; }
+      .title-banner { background-color: #0F172A; color: #38BDF8; font-size: 13pt; font-weight: bold; text-align: center; padding: 10px; border: 1px solid #0F172A; }
+      .meta-info { background-color: #F1F5F9; color: #475569; font-size: 9pt; text-align: center; padding: 6px; border: 1px solid #CBD5E1; }
+      th { font-size: 10pt; font-weight: bold; text-align: center; padding: 8px 12px; border: 1px solid #000000; vertical-align: middle; }
+      td { font-size: 9.5pt; padding: 6px 10px; border: 1px solid #94A3B8; text-align: center; vertical-align: middle; }
+      .text-cell { mso-number-format:"\\@"; }
+      .num-cell { text-align: right; mso-number-format:"0\\.0"; }
+      .num-int { text-align: right; mso-number-format:"0"; }
+      .row-alt { background-color: #F8FAFC; }
+      .status-open { color: #047857; font-weight: bold; background-color: #ECFDF5; }
+      .status-closed { color: #BE123C; font-weight: bold; background-color: #FFF1F2; }
+    </style>
+    </head>
+    <body>
+      <table>
+        <tr>
+          <td colspan="9" class="title-banner">LAPORAN DATA TELEMETRI SENSOR - SMART ROLLER BLIND IOT</td>
+        </tr>
+        <tr>
+          <td colspan="9" class="meta-info">Tanggal Filter: <b>${filterTag}</b> &nbsp;|&nbsp; Waktu Ekspor: ${exportTimeStr} &nbsp;|&nbsp; Metode Keputusan: <b>Fuzzy Sugeno Orde-0</b></td>
+        </tr>
+        <tr><td colspan="9" style="height: 12px;"></td></tr>
+        <thead>
+          <tr>
+            <th style="background-color: #1E3A8A; color: #FFFFFF; width: 50px;">No</th>
+            <th style="background-color: #1E3A8A; color: #FFFFFF; width: 110px;">Tanggal</th>
+            <th style="background-color: #1E3A8A; color: #FFFFFF; width: 95px;">Waktu</th>
+            <th style="background-color: #BE123C; color: #FFFFFF; width: 110px;">Suhu (°C)</th>
+            <th style="background-color: #0284C7; color: #FFFFFF; width: 120px;">Kelembaban (%)</th>
+            <th style="background-color: #7C3AED; color: #FFFFFF; width: 135px;">Sensor Hujan 1 (%)</th>
+            <th style="background-color: #059669; color: #FFFFFF; width: 135px;">Sensor Hujan 2 (%)</th>
+            <th style="background-color: #D97706; color: #FFFFFF; width: 130px;">Skor Fuzzy Z</th>
+            <th style="background-color: #334155; color: #FFFFFF; width: 110px;">Status Tirai</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    dataToExport.forEach((row, idx) => {
+        const isAlt = idx % 2 === 1 ? ' class="row-alt"' : '';
+        const fz = row.fuzzyScore !== null ? Number(row.fuzzyScore).toFixed(3) : "-";
+        const isClosed = row.blindStatus === 'closed';
+        const statusClass = isClosed ? 'status-closed' : 'status-open';
+        const statusText = isClosed ? 'Tutup' : 'Buka';
+
+        tableHtml += `
+          <tr${isAlt}>
+            <td class="text-cell">${idx + 1}</td>
+            <td class="text-cell">${row.date}</td>
+            <td class="text-cell">${row.time}</td>
+            <td class="num-cell">${Number(row.temp).toFixed(1)}</td>
+            <td class="num-int">${row.hum}</td>
+            <td class="num-int">${row.rain1}</td>
+            <td class="num-int">${row.rain2}</td>
+            <td class="num-cell">${fz}</td>
+            <td class="${statusClass}">${statusText}</td>
+          </tr>
+        `;
+    });
+
+    tableHtml += `
+        </tbody>
+      </table>
+    </body>
+    </html>
+    `;
+
+    const blob = new Blob(["\uFEFF" + tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Data_Telemetri_Sensor_${filterTag}_${Date.now()}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    addLog('info', `Berhasil mengekspor ${dataToExport.length} data ke Excel (.xls) dengan tabel rapi & header berwarna`);
+}
+
 function exportSensorCSV() {
     const dataToExport = getFilteredSensorData();
     if (dataToExport.length === 0) {
@@ -810,11 +920,13 @@ function exportSensorCSV() {
         return;
     }
 
-    let csvContent = "No,Tanggal,Waktu,Suhu (C),Kelembaban (%),Sensor Hujan 1 (%),Sensor Hujan 2 (%),Skor Fuzzy Sugeno Z,Status Tirai\n";
+    // Menggunakan pemisah titik koma (;) dan direktif sep=; agar Excel versi Windows & Mac langsung membagi kolom rapi A-I
+    let csvContent = "sep=;\r\n";
+    csvContent += "No;Tanggal;Waktu;Suhu (C);Kelembaban (%);Sensor Hujan 1 (%);Sensor Hujan 2 (%);Skor Fuzzy Sugeno Z;Status Tirai\r\n";
     dataToExport.forEach((row, idx) => {
         const fz = row.fuzzyScore !== null ? row.fuzzyScore : "-";
         const st = row.blindStatus === 'closed' ? 'Tutup' : 'Buka';
-        csvContent += `${idx + 1},${row.date},${row.time},${row.temp},${row.hum},${row.rain1},${row.rain2},${fz},${st}\n`;
+        csvContent += `${idx + 1};${row.date};${row.time};${row.temp};${row.hum};${row.rain1};${row.rain2};${fz};${st}\r\n`;
     });
 
     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -828,7 +940,7 @@ function exportSensorCSV() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    addLog('info', `Berhasil mengekspor ${dataToExport.length} baris data ke CSV (Excel) untuk tanggal: ${filterTag}`);
+    addLog('info', `Berhasil mengekspor ${dataToExport.length} baris data ke CSV`);
 }
 
 function exportSensorJSON() {

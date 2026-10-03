@@ -22,7 +22,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     
     <!-- Custom Stylesheet (with cache buster) -->
-    <link rel="stylesheet" href="css/style.css?v=3.6">
+    <link rel="stylesheet" href="css/style.css?v=3.7">
 </head>
 <body>
 
@@ -330,11 +330,15 @@
                     </div>
 
                     <div class="toolbar-right">
-                        <button class="btn-export-act csv" onclick="exportSensorCSV()" title="Download seluruh data sensor terpilih ke CSV / Excel">
+                        <button class="btn-export-act excel" onclick="exportSensorExcel()" title="Download file Excel (.xls) berformat tabel rapi & header berwarna">
                             <span>📊</span>
-                            <span>Export CSV (Excel)</span>
+                            <span>Export Excel (.xls)</span>
                         </button>
-                        <button class="btn-export-act json" onclick="exportSensorJSON()" title="Download file JSON">
+                        <button class="btn-export-act csv" onclick="exportSensorCSV()" title="Download file CSV dengan pemisah kolom standar">
+                            <span>📑</span>
+                            <span>Export CSV</span>
+                        </button>
+                        <button class="btn-export-act json" onclick="exportSensorJSON()" title="Download file JSON mentah">
                             <span>📥</span>
                             <span>Export JSON</span>
                         </button>
@@ -493,6 +497,6 @@
     </nav>
 
     <!-- Application Script (with cache buster) -->
-    <script src="js/app.js?v=3.6"></script>
+    <script src="js/app.js?v=3.7"></script>
 </body>
 </html>
