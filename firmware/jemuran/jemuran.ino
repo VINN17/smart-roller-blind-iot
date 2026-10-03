@@ -146,13 +146,13 @@ float hitungFuzzySugeno(float rain, float hum, float temp, int jam) {
   w[4] = min(min(u_hujan_kering, u_waktu_siang), min(u_temp_panas, u_hum_lembab));
   z[4] = 0.2;
 
-  // R6: IF Kering AND Siang AND Dingin AND Hum Kering THEN BUKA (z = 0.3) [Sejuk berangin]
+  // R6: IF Kering AND Siang AND Dingin AND Hum Kering THEN BUKA (z = 0.25) [Sejuk berangin]
   w[5] = min(min(u_hujan_kering, u_waktu_siang), min(u_temp_dingin, u_hum_kering));
-  z[5] = 0.3;
+  z[5] = 0.25;
 
-  // R7: IF Kering AND Siang AND Dingin AND Hum Lembab THEN TUTUP (z = 0.85) [Mendung tebal / Potensi hujan]
+  // R7: IF Kering AND Siang AND Dingin AND Hum Lembab THEN BUKA (z = 0.30) [Mendung / Pasca Hujan - Tetap Buka karena tidak ada hujan]
   w[6] = min(min(u_hujan_kering, u_waktu_siang), min(u_temp_dingin, u_hum_lembab));
-  z[6] = 0.85;
+  z[6] = 0.30;
 
   // DEFUZZIFIKASI WEIGHTED AVERAGE
   float sum_wz = 0.0;
