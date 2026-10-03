@@ -209,10 +209,16 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     if (message == "auto") {
       currentMode = AUTO;
       motorLocked = false;
+      flag_m = 0;
+      targetCommand = CMD_STOP;
+      stopMotorImmediate();
+      Serial.println("MODE SWITCH [MQTT]: Berubah ke AUTO - Evaluasi target cuaca");
     } else if (message == "manual") {
       currentMode = MANUAL;
       motorLocked = false;
       motorCommand = CMD_STOP;
+      stopMotorImmediate();
+      Serial.println("MODE SWITCH [MQTT]: Berubah ke MANUAL - Motor langsung STOP");
     }
   }
 }
@@ -234,99 +240,111 @@ void requestMotorControl(MotorCommand cmd) {
   }
 }
 
+// ==================== FUNGSI LOW-LEVEL MOTOR & PROTEKSI DEADTIME ====================
+MotorCommand currentPhysicalDirection = CMD_STOP;
+
+void stopMotorImmediate() {
+  digitalWrite(MOTOR_IN1, LOW);
+  digitalWrite(MOTOR_IN2, LOW);
+  analogWrite(MOTOR_EN, 0);
+  currentPhysicalDirection = CMD_STOP;
+}
+
+void setMotorDrive(int in1, int in2, int speed, MotorCommand newDir) {
+  // Proteksi Deadtime: jika motor sedang berputar dan tiba-tiba berganti arah (misal NAIK -> TURUN),
+  // matikan arus sejenak (80ms) untuk mencegah lonjakan arus balik (Back-EMF spike) yang bisa merusak driver / restart ESP32
+  if (currentPhysicalDirection != CMD_STOP && newDir != CMD_STOP && currentPhysicalDirection != newDir) {
+    stopMotorImmediate();
+    delay(80);
+  }
+
+  digitalWrite(MOTOR_IN1, in1);
+  digitalWrite(MOTOR_IN2, in2);
+  analogWrite(MOTOR_EN, speed);
+  currentPhysicalDirection = newDir;
+}
+
 // ==================== FUNGSI KONTROL MOTOR ====================
 void processMotorControl() {
-  // Selalu cek dan update posisi berdasarkan limit switch atas
-  if (digitalRead(LIMIT_SWITCH_ATAS) == 0) {
+  // 1. Cek limit switch fisik atas (Pin 22)
+  bool isTopSwitchHit = (digitalRead(LIMIT_SWITCH_ATAS) == 0);
+  if (isTopSwitchHit) {
     if (motorCounter != 0) {
       motorCounter = 0;
-      Serial.println("Position corrected: Counter reset to 0 (at top)");
+      Serial.println("Koreksi Posisi: Counter direset ke 0 (Limit Atas Tercapai)");
+    }
+  }
+
+  // 2. Cek limit switch fisik bawah (Pin 23)
+  bool isBottomSwitchHit = (digitalRead(LIMIT_SWITCH_BAWAH) == 0);
+  if (isBottomSwitchHit) {
+    if (motorCounter != MAX_COUNTER) {
+      motorCounter = MAX_COUNTER;
+      Serial.println("Koreksi Posisi: Counter diset ke MAX_COUNTER (Limit Bawah Tercapai)");
     }
   }
 
   MotorCommand activeCommand = (currentMode == AUTO) ? targetCommand : motorCommand;
 
-  // Mode AUTO: cek apakah sudah di posisi target
+  // 3. Mode AUTO: cek apakah sudah mencapai posisi target
   if (currentMode == AUTO) {
-    // Sudah di atas dan target NAIK
-    if (activeCommand == CMD_NAIK && motorCounter == 0 && digitalRead(LIMIT_SWITCH_ATAS) == 0) {
+    // Target NAIK dan sudah di atas
+    if (activeCommand == CMD_NAIK && (isTopSwitchHit || motorCounter == 0)) {
       if (!motorLocked) {
-        digitalWrite(MOTOR_IN1, LOW);
-        digitalWrite(MOTOR_IN2, LOW);
-        analogWrite(MOTOR_EN, 0);
+        stopMotorImmediate();
         motorLocked = true;
         flag_m = 1;
-        Serial.println("AUTO: Reached TOP - Motor LOCKED");
+        Serial.println("AUTO: Posisi ATAS tercapai - Motor STOP & LOCKED");
       }
       return;
     }
     
-    // Sudah di bawah dan target TURUN
-    if (activeCommand == CMD_TURUN && motorCounter >= MAX_COUNTER) {
+    // Target TURUN dan sudah di bawah
+    if (activeCommand == CMD_TURUN && (isBottomSwitchHit || motorCounter >= MAX_COUNTER)) {
       if (!motorLocked) {
-        digitalWrite(MOTOR_IN1, LOW);
-        digitalWrite(MOTOR_IN2, LOW);
-        analogWrite(MOTOR_EN, 0);
+        stopMotorImmediate();
         motorLocked = true;
-        Serial.println("AUTO: Reached BOTTOM - Motor LOCKED");
+        Serial.println("AUTO: Posisi BAWAH tercapai - Motor STOP & LOCKED");
       }
       return;
     }
   }
 
-  // ========== NAIK ==========
+  // 4. Eksekusi NAIK
   if (activeCommand == CMD_NAIK) {
-    if (digitalRead(LIMIT_SWITCH_ATAS) != 0) {
-      if (flag_m == 0) {
-        digitalWrite(MOTOR_IN1, HIGH);
-        digitalWrite(MOTOR_IN2, LOW);
-        analogWrite(MOTOR_EN, 255);
-        
-        if (motorCounter > 0) {
-          motorCounter--;
-        }
+    if (!isTopSwitchHit) {
+      setMotorDrive(HIGH, LOW, 255, CMD_NAIK);
+      if (motorCounter > 0) {
+        motorCounter--;
       }
     } else {
-      flag_m = 1;
+      stopMotorImmediate();
       motorCounter = 0;
-      
-      digitalWrite(MOTOR_IN1, LOW);
-      digitalWrite(MOTOR_IN2, LOW);
-      analogWrite(MOTOR_EN, 0);
-      
-      if (currentMode == MANUAL && !motorLocked) {
+      flag_m = 1;
+      if (!motorLocked) {
         motorLocked = true;
-        Serial.println("MANUAL: Limit ATAS tercapai - Motor LOCKED");
+        Serial.println("Limit ATAS tercapai - Motor STOP & LOCKED");
       }
     }
   }
-  // ========== TURUN ==========
+  // 5. Eksekusi TURUN
   else if (activeCommand == CMD_TURUN) {
     flag_m = 0;
-    
-    if (motorCounter < MAX_COUNTER) {
-      digitalWrite(MOTOR_IN1, LOW);
-      digitalWrite(MOTOR_IN2, HIGH);
-      analogWrite(MOTOR_EN, 255);
-      
+    if (!isBottomSwitchHit && motorCounter < MAX_COUNTER) {
+      setMotorDrive(LOW, HIGH, 255, CMD_TURUN);
       motorCounter++;
     } else {
-      digitalWrite(MOTOR_IN1, LOW);
-      digitalWrite(MOTOR_IN2, LOW);
-      analogWrite(MOTOR_EN, 0);
-      
-      if (currentMode == MANUAL && !motorLocked) {
+      stopMotorImmediate();
+      motorCounter = MAX_COUNTER;
+      if (!motorLocked) {
         motorLocked = true;
-        Serial.println("MANUAL: Batas BAWAH tercapai - Motor LOCKED");
+        Serial.println("Batas BAWAH tercapai - Motor STOP & LOCKED");
       }
     }
   }
-  // ========== STOP ==========
+  // 6. Eksekusi STOP
   else {
-    digitalWrite(MOTOR_IN1, LOW);
-    digitalWrite(MOTOR_IN2, LOW);
-    analogWrite(MOTOR_EN, 0);
-    
+    stopMotorImmediate();
     if (currentMode == MANUAL && !motorLocked) {
       motorLocked = true;
       Serial.println("Manual STOP - Motor LOCKED");
@@ -395,12 +413,15 @@ void handleSetMode() {
   if (mode == "auto") {
     currentMode = AUTO;
     motorLocked = false;
-    motorCommand = CMD_STOP;
+    flag_m = 0;
+    targetCommand = CMD_STOP;
+    stopMotorImmediate();
     server.send(200, "application/json", "{\"status\":\"ok\",\"mode\":\"auto\"}");
   } else if (mode == "manual") {
     currentMode = MANUAL;
     motorLocked = false;
     motorCommand = CMD_STOP;
+    stopMotorImmediate();
     server.send(200, "application/json", "{\"status\":\"ok\",\"mode\":\"manual\"}");
   } else {
     server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid mode\"}");
